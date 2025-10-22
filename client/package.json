@@ -9,7 +9,9 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.12.2",
     "bootstrap": "^5.3.8",
-    "livekit-client": "^2.15.11",
+    "bootstrap-icons": "^1.13.1",
+    "classnames": "^2.5.1",
+    "livekit-client": "^2.15.13",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
@@ -42,8 +44,7 @@
     ]
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.14"
+    "eslint": "^8.57.1",
+    "eslint-plugin-react-hooks": "^7.0.0"
   }
 }
