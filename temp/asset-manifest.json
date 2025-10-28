@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/video-chat/static/css/main.3b71cc2a.css",
+    "main.js": "/video-chat/static/js/main.9ecc0e3a.js",
+    "static/js/453.eb570f4f.chunk.js": "/video-chat/static/js/453.eb570f4f.chunk.js",
+    "index.html": "/video-chat/index.html",
+    "main.3b71cc2a.css.map": "/video-chat/static/css/main.3b71cc2a.css.map",
+    "main.9ecc0e3a.js.map": "/video-chat/static/js/main.9ecc0e3a.js.map",
+    "453.eb570f4f.chunk.js.map": "/video-chat/static/js/453.eb570f4f.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.3b71cc2a.css",
+    "static/js/main.9ecc0e3a.js"
+  ]
+}
