@@ -41,20 +41,20 @@ app.post("/api/livekit/token", async (req, res) => {
       return res.status(400).json({ error: "Missing userName or roomName" });
     }
 
-    // ✅ Ensure environment variables exist
+    // ✅ Check LiveKit credentials
     const { LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL } = process.env;
     if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
       console.error("❌ Missing LiveKit credentials in .env");
       return res.status(500).json({ error: "LiveKit configuration missing" });
     }
 
-    // ✅ Create LiveKit Access Token (v2.x structure)
+    // ✅ Create LiveKit Access Token (v2.x syntax)
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity: userName,
-      ttl: "1h", // token valid for 1 hour
+      ttl: "1h", // Token valid for 1 hour
     });
 
-    // ✅ Grant permissions for the room
+    // ✅ Grant user permission to join, publish, and subscribe
     at.addGrant({
       roomJoin: true,
       room: roomName,
@@ -62,11 +62,12 @@ app.post("/api/livekit/token", async (req, res) => {
       canSubscribe: true,
     });
 
+    // ✅ Generate token
     const token = await at.toJwt();
 
     console.log(`🎟️ Token generated for user: ${userName} | Room: ${roomName}`);
 
-    // ✅ Return token + LiveKit URL to client
+    // ✅ Return token + LiveKit URL to frontend
     return res.json({
       token,
       url: LIVEKIT_URL,
@@ -83,7 +84,7 @@ app.post("/api/livekit/token", async (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // ⚠️ In production, set your actual frontend URL
     methods: ["GET", "POST"],
   },
 });
@@ -101,29 +102,32 @@ io.on("connection", (socket) => {
     console.log(`✅ Registered: ${userName} (${userId})`);
   });
 
-  // ✅ Initiate a call
+  // ✅ Initiate a call (sender → receiver)
   socket.on("call-user", ({ toUserId, fromUserId, roomName }) => {
     const callee = onlineUsers[toUserId];
-    if (callee && onlineUsers[fromUserId]) {
+    const caller = onlineUsers[fromUserId];
+    if (callee && caller) {
       io.to(callee.socketId).emit("incoming-call", {
         fromUserId,
-        fromUserName: onlineUsers[fromUserId].userName,
+        fromUserName: caller.userName,
         roomName,
       });
-      console.log(
-        `📞 ${onlineUsers[fromUserId].userName} is calling ${callee.userName} in room ${roomName}`
-      );
+      console.log(`📞 ${caller.userName} is calling ${callee.userName} in room ${roomName}`);
+    } else {
+      console.log("⚠️ Call-user failed — callee or caller not found.");
     }
   });
 
-  // ✅ Handle accept/reject response
+  // ✅ Handle call accept/reject
   socket.on("call-response", ({ toUserId, accepted, roomName }) => {
     const caller = onlineUsers[toUserId];
     if (caller) {
       io.to(caller.socketId).emit("call-response", { accepted, roomName });
       console.log(
-        `📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for room ${roomName}`
+        `📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for room ${roomName} (to ${caller.userName})`
       );
+    } else {
+      console.log("⚠️ Caller not found for call-response");
     }
   });
 

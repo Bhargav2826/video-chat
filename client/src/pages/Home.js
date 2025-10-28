@@ -1,9 +1,8 @@
-// Home.js
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { Room, RoomEvent } from "livekit-client";
+import { Room, RoomEvent, createLocalTracks } from "livekit-client";
 
 const SOCKET_URL = "http://localhost:5000";
 const LIVEKIT_URL = "wss://video-chat-wfvq5jjj.livekit.cloud";
@@ -18,6 +17,9 @@ function Home() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [room, setRoom] = useState(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isInCall, setIsInCall] = useState(false);
+  const [isCalling, setIsCalling] = useState(false);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -41,109 +43,88 @@ function Home() {
     });
   }, [username, userId]);
 
-  // ✅ Improved acceptCall()
-  const acceptCall = async (roomName, callerName) => {
+  // -------------------- Start Camera Preview --------------------
+  const startCameraPreview = async () => {
+    try {
+      const localTracks = await createLocalTracks({
+        audio: true,
+        video: { facingMode: "user" },
+      });
+      const videoTrack = localTracks.find((t) => t.kind === "video");
+      if (videoTrack && localVideoRef.current) {
+        const videoEl = videoTrack.attach();
+        localVideoRef.current.srcObject = videoEl.srcObject || videoEl.captureStream?.();
+      }
+      setIsPreviewing(true);
+      console.log("🎥 Local preview started");
+      return localTracks;
+    } catch (err) {
+      console.error("⚠️ Could not start camera preview:", err);
+      alert("Please allow camera/microphone access.");
+      return [];
+    }
+  };
+
+  // -------------------- Accept or Join Call --------------------
+  const acceptCall = async (roomName) => {
     try {
       console.log(`📞 Accepting call for room: ${roomName}`);
 
       const res = await fetch("http://localhost:5000/api/livekit/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomName, userName: callerName }),
+        body: JSON.stringify({ roomName, userName: username }),
       });
-
       const data = await res.json();
-      if (!data.token) throw new Error("No token received from backend!");
-
-      console.log("✅ LiveKit token received:", data.token);
+      if (!data.token) throw new Error("No token received!");
 
       const livekitRoom = new Room();
-
-      livekitRoom.on(RoomEvent.Connected, () => {
-        console.log("🎥 Connected to LiveKit room successfully!");
-      });
-
-      livekitRoom.on(RoomEvent.Disconnected, () => {
-        console.log("❌ Disconnected from LiveKit room");
-        cleanupTracks();
-        setRoom(null);
-      });
-
       await livekitRoom.connect(LIVEKIT_URL, data.token);
+      console.log("✅ Connected to LiveKit");
 
-      // ✅ Enable mic and camera
-      await livekitRoom.localParticipant.setMicrophoneEnabled(true);
-      await livekitRoom.localParticipant.setCameraEnabled(true);
+      const localTracks = await createLocalTracks({
+        audio: true,
+        video: { facingMode: "user" },
+      });
 
-      // ✅ Listen for late local track publications
-      livekitRoom.localParticipant.on("trackPublished", (pub) => {
-        if (pub.kind === "video" && pub.track && localVideoRef.current) {
-          const videoEl = pub.track.attach();
-          localVideoRef.current.srcObject = videoEl.srcObject;
-          console.log("📷 Local track attached dynamically");
+      // Attach local camera to preview
+      localTracks.forEach((track) => {
+        livekitRoom.localParticipant.publishTrack(track);
+        if (track.kind === "video" && localVideoRef.current) {
+          const videoEl = track.attach();
+          localVideoRef.current.srcObject = videoEl.srcObject || videoEl.captureStream?.();
         }
       });
 
-      // ✅ Try attaching immediately if tracks exist
-      const videoTracks = livekitRoom.localParticipant?.videoTracks;
-      if (videoTracks && typeof videoTracks.forEach === "function") {
-        videoTracks.forEach((pub) => {
-          if (pub.track && localVideoRef.current) {
-            const videoEl = pub.track.attach();
-            localVideoRef.current.srcObject = videoEl.srcObject;
-            console.log("📹 Local track attached immediately");
-          }
-        });
-      } else {
-        console.warn("⚠️ No local video tracks available yet.");
-      }
-
-      console.log("Local tracks:", livekitRoom.localParticipant.videoTracks);
-
-      // ✅ Handle remote participants joining later
-      livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
-        console.log("👥 Remote participant joined:", participant.identity);
-
-        participant.on("trackSubscribed", (track) => {
-          if (track.kind === "video" && remoteVideoRef.current) {
-            const videoEl = track.attach();
-            remoteVideoRef.current.srcObject = videoEl.srcObject;
-            console.log("🎥 Remote video attached");
-          }
-        });
+      // Remote participant's video
+      livekitRoom.on(RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === "video" && remoteVideoRef.current) {
+          const videoEl = track.attach();
+          remoteVideoRef.current.srcObject = videoEl.srcObject || videoEl.captureStream?.();
+        }
       });
 
-      // ✅ Handle already connected participants
-      if (livekitRoom.participants && livekitRoom.participants.size > 0) {
-        console.log(
-          "🧩 Existing participants:",
-          [...livekitRoom.participants.keys()]
-        );
-
-        livekitRoom.participants.forEach((participant) => {
-          const trackPublications = participant.tracks
-            ? Array.from(participant.tracks.values())
-            : [];
-
-          trackPublications.forEach((pub) => {
-            if (pub.track && remoteVideoRef.current && pub.track.kind === "video") {
-              const videoEl = pub.track.attach();
-              remoteVideoRef.current.srcObject = videoEl.srcObject;
-              console.log("🎞️ Attached pre-existing remote video track");
-            }
-          });
-        });
-      } else {
-        console.log("ℹ️ No existing participants at the moment (will join soon).");
-      }
-
-      // ✅ Store room reference
-      roomRef.current = livekitRoom;
       setRoom(livekitRoom);
+      roomRef.current = livekitRoom;
+      setIsPreviewing(true);
+      setIsInCall(true);
     } catch (error) {
       console.error("❌ Failed to join LiveKit room:", error);
-      alert("Could not connect to call. Check console for details.");
     }
+  };
+
+  // -------------------- Caller Initiates Call --------------------
+  const initiateCall = async () => {
+    if (!selectedUser) return alert("Select a user first.");
+    const toUserId = selectedUser._id;
+    const fromUserId = userId || username;
+    const roomName = `room_${[username, selectedUser.username].sort().join("_")}`;
+
+    setIsCalling(true);
+    await startCameraPreview();
+
+    socket.emit("call-user", { toUserId, fromUserId, roomName });
+    alert(`📞 Calling ${selectedUser.username}... waiting for acceptance.`);
   };
 
   // -------------------- Socket Events --------------------
@@ -154,9 +135,9 @@ function Home() {
     });
 
     socket.on("call-response", ({ accepted, roomName }) => {
-      if (accepted) acceptCall(roomName, username);
-      else alert("Call declined by user.");
       console.log("📲 Call response:", accepted, roomName);
+      if (accepted) acceptCall(roomName);
+      else alert("Call declined by user.");
     });
 
     return () => {
@@ -165,23 +146,23 @@ function Home() {
     };
   }, [username]);
 
-  // -------------------- Logout --------------------
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/login");
-  };
-
-  // -------------------- Call functions --------------------
-  const initiateCall = () => {
-    if (!selectedUser) return alert("Select a user first.");
-    const toUserId = selectedUser._id;
-    const fromUserId = userId || username;
-    const roomName = `room_${[username, selectedUser.username]
-      .sort()
-      .join("_")}`;
-
-    socket.emit("call-user", { toUserId, fromUserId, roomName });
-    alert(`Calling ${selectedUser.username}... waiting for acceptance.`);
+  // -------------------- End Call --------------------
+  const endCall = () => {
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      setRoom(null);
+    }
+    if (localVideoRef.current?.srcObject) {
+      localVideoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current?.srcObject) {
+      remoteVideoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+      remoteVideoRef.current.srcObject = null;
+    }
+    setIsPreviewing(false);
+    setIsInCall(false);
+    setIsCalling(false);
   };
 
   const handleAcceptCall = () => {
@@ -192,7 +173,7 @@ function Home() {
       roomName: incomingCall.roomName,
     });
     setIncomingCall(null);
-    acceptCall(incomingCall.roomName, username);
+    acceptCall(incomingCall.roomName);
   };
 
   const handleDeclineCall = () => {
@@ -201,17 +182,9 @@ function Home() {
     setIncomingCall(null);
   };
 
-  const endCall = () => {
-    if (roomRef.current) {
-      roomRef.current.disconnect();
-      setRoom(null);
-      cleanupTracks();
-    }
-  };
-
-  const cleanupTracks = () => {
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/login");
   };
 
   // -------------------- JSX --------------------
@@ -224,13 +197,9 @@ function Home() {
           {users.map((user) => (
             <li
               key={user._id}
-              className={`list-group-item ${
-                selectedUser === user ? "active" : ""
-              }`}
+              className={`list-group-item ${selectedUser === user ? "active" : ""}`}
               style={{ cursor: "pointer" }}
-              onClick={() =>
-                setSelectedUser(selectedUser === user ? null : user)
-              }
+              onClick={() => setSelectedUser(selectedUser === user ? null : user)}
             >
               {user.username}
             </li>
@@ -250,9 +219,7 @@ function Home() {
               Logout
             </button>
             <h1 className="mb-3 text-center">Hello, {username} 👋</h1>
-            <p className="text-secondary text-center">
-              Welcome to your dashboard
-            </p>
+            <p className="text-secondary text-center">Welcome to your dashboard</p>
           </div>
         )}
 
@@ -267,7 +234,7 @@ function Home() {
             </button>
             <h5>Chat with {selectedUser.username}</h5>
 
-            {!room && !incomingCall && (
+            {!room && !incomingCall && !isInCall && (
               <button className="btn btn-success my-2" onClick={initiateCall}>
                 Start Video Call
               </button>
@@ -277,43 +244,37 @@ function Home() {
               <div className="alert alert-info mt-3">
                 Incoming call from <strong>{incomingCall.name}</strong>
                 <div className="mt-2">
-                  <button
-                    className="btn btn-sm btn-primary me-2"
-                    onClick={handleAcceptCall}
-                  >
+                  <button className="btn btn-sm btn-primary me-2" onClick={handleAcceptCall}>
                     Accept
                   </button>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={handleDeclineCall}
-                  >
+                  <button className="btn btn-sm btn-danger" onClick={handleDeclineCall}>
                     Decline
                   </button>
                 </div>
               </div>
             )}
 
-            {room && (
-              <div className="video-container d-flex justify-content-center align-items-center mt-3 w-100 h-100">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="local-video"
-                  style={{ width: "50%", marginRight: "10px" }}
-                />
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="remote-video"
-                  style={{ width: "50%" }}
-                />
-                <div
-                  className="position-absolute"
-                  style={{ bottom: 20, right: 20 }}
-                >
+            {(isPreviewing || isInCall) && (
+              <div className="row w-100 h-100 mt-2">
+                <div className="col-md-6 d-flex justify-content-center align-items-center bg-dark">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="rounded w-100 h-100 object-fit-cover"
+                  ></video>
+                </div>
+                <div className="col-md-6 d-flex justify-content-center align-items-center bg-secondary">
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="rounded w-100 h-100 object-fit-cover"
+                  ></video>
+                </div>
+
+                <div className="position-absolute" style={{ bottom: 20, right: 20 }}>
                   <button className="btn btn-danger" onClick={endCall}>
                     End Call
                   </button>
