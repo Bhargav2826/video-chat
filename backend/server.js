@@ -5,84 +5,103 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const http = require("http");
 const { Server } = require("socket.io");
-const { AccessToken, VideoGrant } = require("livekit-server-sdk"); // ✅ Correct import
+const { AccessToken } = require("livekit-server-sdk"); // ✅ LiveKit v2.14+ compatible
 
 dotenv.config();
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // --------------------
-// MongoDB connection
+// MongoDB Connection
 // --------------------
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("✅ MongoDB connected"))
-  .catch(err => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // --------------------
-// Auth routes
+// Auth Routes
 // --------------------
 app.use("/api/auth", require("./routes/auth"));
 
 // --------------------
-// LiveKit token route
+// LiveKit Token Route
 // --------------------
-app.post("/api/livekit/token", (req, res) => {
+app.post("/api/livekit/token", async (req, res) => {
   const { userName, roomName } = req.body;
-  if (!userName || !roomName) {
-    return res.status(400).json({ error: "Missing userName or roomName" });
-  }
 
   try {
-    // Generate LiveKit access token
-    const at = new AccessToken(
-      process.env.LIVEKIT_API_KEY,
-      process.env.LIVEKIT_API_SECRET,
-      { identity: userName }
-    );
+    // ✅ Input validation
+    if (!userName || !roomName) {
+      return res.status(400).json({ error: "Missing userName or roomName" });
+    }
 
-    // Grant access to the specified room
-    const grant = new VideoGrant({ room: roomName });
-    at.addGrant(grant);
+    // ✅ Ensure environment variables exist
+    const { LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL } = process.env;
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
+      console.error("❌ Missing LiveKit credentials in .env");
+      return res.status(500).json({ error: "LiveKit configuration missing" });
+    }
 
-    const token = at.toJwt();
-    console.log(`🎟️ Generated LiveKit token for ${userName} in room ${roomName}`);
-
-    res.json({
-      token,
-      url: process.env.LIVEKIT_URL,
+    // ✅ Create LiveKit Access Token (v2.x structure)
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: userName,
+      ttl: "1h", // token valid for 1 hour
     });
-  } catch (err) {
-    console.error("❌ Error generating LiveKit token:", err);
-    res.status(500).json({ error: "Failed to generate LiveKit token" });
+
+    // ✅ Grant permissions for the room
+    at.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+    });
+
+    const token = await at.toJwt();
+
+    console.log(`🎟️ Token generated for user: ${userName} | Room: ${roomName}`);
+
+    // ✅ Return token + LiveKit URL to client
+    return res.json({
+      token,
+      url: LIVEKIT_URL,
+    });
+  } catch (error) {
+    console.error("❌ Error generating LiveKit token:", error);
+    return res.status(500).json({ error: "Failed to generate LiveKit token" });
   }
 });
 
 // --------------------
-// Socket.IO for call signaling
+// Socket.IO for Call Signaling
 // --------------------
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
 });
 
-// Store online users: userId -> { socketId, userName }
+// Track connected users: userId → { socketId, userName }
 let onlineUsers = {};
 
 io.on("connection", (socket) => {
   console.log("🔗 User connected:", socket.id);
 
-  // Register user
+  // ✅ Register user
   socket.on("register-user", ({ userId, userName }) => {
     if (!userId || !userName) return;
     onlineUsers[userId] = { socketId: socket.id, userName };
-    console.log("✅ Socket registered for userId:", userId);
+    console.log(`✅ Registered: ${userName} (${userId})`);
   });
 
-  // Initiate call
+  // ✅ Initiate a call
   socket.on("call-user", ({ toUserId, fromUserId, roomName }) => {
     const callee = onlineUsers[toUserId];
     if (callee && onlineUsers[fromUserId]) {
@@ -91,32 +110,37 @@ io.on("connection", (socket) => {
         fromUserName: onlineUsers[fromUserId].userName,
         roomName,
       });
-      console.log(`📞 ${onlineUsers[fromUserId].userName} is calling ${callee.userName} in room ${roomName}`);
+      console.log(
+        `📞 ${onlineUsers[fromUserId].userName} is calling ${callee.userName} in room ${roomName}`
+      );
     }
   });
 
-  // Handle call response
+  // ✅ Handle accept/reject response
   socket.on("call-response", ({ toUserId, accepted, roomName }) => {
     const caller = onlineUsers[toUserId];
     if (caller) {
       io.to(caller.socketId).emit("call-response", { accepted, roomName });
-      console.log(`📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for room ${roomName}`);
+      console.log(
+        `📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for room ${roomName}`
+      );
     }
   });
 
-  // Disconnect
+  // ✅ Handle disconnect
   socket.on("disconnect", () => {
-    for (let key in onlineUsers) {
-      if (onlineUsers[key].socketId === socket.id) {
-        console.log(`❌ User disconnected: ${onlineUsers[key].userName}`);
-        delete onlineUsers[key];
+    for (let userId in onlineUsers) {
+      if (onlineUsers[userId].socketId === socket.id) {
+        console.log(`❌ Disconnected: ${onlineUsers[userId].userName}`);
+        delete onlineUsers[userId];
+        break;
       }
     }
   });
 });
 
 // --------------------
-// Start server
+// Start Server
 // --------------------
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

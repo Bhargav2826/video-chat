@@ -1,11 +1,12 @@
 // Home.js
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { Room, RoomEvent, createLocalTracks } from "livekit-client";
+import { Room, RoomEvent } from "livekit-client";
 
 const SOCKET_URL = "http://localhost:5000";
+const LIVEKIT_URL = "wss://video-chat-wfvq5jjj.livekit.cloud";
 const socket = io(SOCKET_URL, { autoConnect: true });
 
 function Home() {
@@ -18,14 +19,11 @@ function Home() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [room, setRoom] = useState(null);
 
-  const localVideoRef = useRef();
-  const remoteVideoRef = useRef();
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
   const roomRef = useRef(null);
-  const localTracksRef = useRef([]);
 
-  // --------------------
-  // Fetch users and register socket
-  // --------------------
+  // -------------------- Fetch Users --------------------
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -37,62 +35,118 @@ function Home() {
     };
     fetchUsers();
 
-    socket.emit("register-user", { userId: userId || username, userName: username });
+    socket.emit("register-user", {
+      userId: userId || username,
+      userName: username,
+    });
   }, [username, userId]);
 
-  // --------------------
-  // Join LiveKit room safely
-  // --------------------
-  const joinLiveKitRoom = useCallback(async (roomName) => {
+  // ✅ Improved acceptCall()
+  const acceptCall = async (roomName, callerName) => {
     try {
-      const res = await axios.post("http://localhost:5000/api/livekit/token", {
-        userName: username,
-        roomName,
+      console.log(`📞 Accepting call for room: ${roomName}`);
+
+      const res = await fetch("http://localhost:5000/api/livekit/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomName, userName: callerName }),
       });
 
-      const { token, url } = res.data;
-      if (!token || !url) throw new Error("LiveKit token or URL missing");
+      const data = await res.json();
+      if (!data.token) throw new Error("No token received from backend!");
+
+      console.log("✅ LiveKit token received:", data.token);
 
       const livekitRoom = new Room();
-      await livekitRoom.connect(url, token.toString());
-      setRoom(livekitRoom);
-      roomRef.current = livekitRoom;
 
-      // Create local tracks
-      const tracks = await createLocalTracks({ audio: true, video: true });
-      localTracksRef.current = tracks;
-
-      for (const track of tracks) {
-        await livekitRoom.localParticipant.publishTrack(track);
-        if (track.kind === "video" && localVideoRef.current) track.attach(localVideoRef.current);
-      }
-
-      // Subscribe to remote participant tracks
-      livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
-        participant.tracks.forEach((pub) => {
-          if (pub.isSubscribed && pub.track && pub.track.kind === "video") {
-            pub.track.attach(remoteVideoRef.current);
-          }
-        });
-
-        participant.on("trackSubscribed", (track) => {
-          if (track.kind === "video") track.attach(remoteVideoRef.current);
-        });
+      livekitRoom.on(RoomEvent.Connected, () => {
+        console.log("🎥 Connected to LiveKit room successfully!");
       });
 
       livekitRoom.on(RoomEvent.Disconnected, () => {
+        console.log("❌ Disconnected from LiveKit room");
         cleanupTracks();
         setRoom(null);
       });
-    } catch (err) {
-      console.error("Failed to join LiveKit room:", err);
+
+      await livekitRoom.connect(LIVEKIT_URL, data.token);
+
+      // ✅ Enable mic and camera
+      await livekitRoom.localParticipant.setMicrophoneEnabled(true);
+      await livekitRoom.localParticipant.setCameraEnabled(true);
+
+      // ✅ Listen for late local track publications
+      livekitRoom.localParticipant.on("trackPublished", (pub) => {
+        if (pub.kind === "video" && pub.track && localVideoRef.current) {
+          const videoEl = pub.track.attach();
+          localVideoRef.current.srcObject = videoEl.srcObject;
+          console.log("📷 Local track attached dynamically");
+        }
+      });
+
+      // ✅ Try attaching immediately if tracks exist
+      const videoTracks = livekitRoom.localParticipant?.videoTracks;
+      if (videoTracks && typeof videoTracks.forEach === "function") {
+        videoTracks.forEach((pub) => {
+          if (pub.track && localVideoRef.current) {
+            const videoEl = pub.track.attach();
+            localVideoRef.current.srcObject = videoEl.srcObject;
+            console.log("📹 Local track attached immediately");
+          }
+        });
+      } else {
+        console.warn("⚠️ No local video tracks available yet.");
+      }
+
+      console.log("Local tracks:", livekitRoom.localParticipant.videoTracks);
+
+      // ✅ Handle remote participants joining later
+      livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
+        console.log("👥 Remote participant joined:", participant.identity);
+
+        participant.on("trackSubscribed", (track) => {
+          if (track.kind === "video" && remoteVideoRef.current) {
+            const videoEl = track.attach();
+            remoteVideoRef.current.srcObject = videoEl.srcObject;
+            console.log("🎥 Remote video attached");
+          }
+        });
+      });
+
+      // ✅ Handle already connected participants
+      if (livekitRoom.participants && livekitRoom.participants.size > 0) {
+        console.log(
+          "🧩 Existing participants:",
+          [...livekitRoom.participants.keys()]
+        );
+
+        livekitRoom.participants.forEach((participant) => {
+          const trackPublications = participant.tracks
+            ? Array.from(participant.tracks.values())
+            : [];
+
+          trackPublications.forEach((pub) => {
+            if (pub.track && remoteVideoRef.current && pub.track.kind === "video") {
+              const videoEl = pub.track.attach();
+              remoteVideoRef.current.srcObject = videoEl.srcObject;
+              console.log("🎞️ Attached pre-existing remote video track");
+            }
+          });
+        });
+      } else {
+        console.log("ℹ️ No existing participants at the moment (will join soon).");
+      }
+
+      // ✅ Store room reference
+      roomRef.current = livekitRoom;
+      setRoom(livekitRoom);
+    } catch (error) {
+      console.error("❌ Failed to join LiveKit room:", error);
       alert("Could not connect to call. Check console for details.");
     }
-  }, [username]);
+  };
 
-  // --------------------
-  // Socket event listeners
-  // --------------------
+  // -------------------- Socket Events --------------------
   useEffect(() => {
     socket.on("incoming-call", ({ fromUserId, fromUserName, roomName }) => {
       setIncomingCall({ id: fromUserId, name: fromUserName, roomName });
@@ -100,7 +154,7 @@ function Home() {
     });
 
     socket.on("call-response", ({ accepted, roomName }) => {
-      if (accepted) joinLiveKitRoom(roomName);
+      if (accepted) acceptCall(roomName, username);
       else alert("Call declined by user.");
       console.log("📲 Call response:", accepted, roomName);
     });
@@ -109,37 +163,39 @@ function Home() {
       socket.off("incoming-call");
       socket.off("call-response");
     };
-  }, [joinLiveKitRoom]);
+  }, [username]);
 
-  // --------------------
-  // Logout
-  // --------------------
+  // -------------------- Logout --------------------
   const handleLogout = () => {
     localStorage.clear();
     navigate("/login");
   };
 
-  // --------------------
-  // Call functions
-  // --------------------
+  // -------------------- Call functions --------------------
   const initiateCall = () => {
     if (!selectedUser) return alert("Select a user first.");
     const toUserId = selectedUser._id;
     const fromUserId = userId || username;
-    const roomName = `room_${[username, selectedUser.username].sort().join("_")}`;
+    const roomName = `room_${[username, selectedUser.username]
+      .sort()
+      .join("_")}`;
 
     socket.emit("call-user", { toUserId, fromUserId, roomName });
     alert(`Calling ${selectedUser.username}... waiting for acceptance.`);
   };
 
-  const acceptCall = () => {
+  const handleAcceptCall = () => {
     if (!incomingCall) return;
-    socket.emit("call-response", { toUserId: incomingCall.id, accepted: true, roomName: incomingCall.roomName });
+    socket.emit("call-response", {
+      toUserId: incomingCall.id,
+      accepted: true,
+      roomName: incomingCall.roomName,
+    });
     setIncomingCall(null);
-    joinLiveKitRoom(incomingCall.roomName);
+    acceptCall(incomingCall.roomName, username);
   };
 
-  const declineCall = () => {
+  const handleDeclineCall = () => {
     if (!incomingCall) return;
     socket.emit("call-response", { toUserId: incomingCall.id, accepted: false });
     setIncomingCall(null);
@@ -154,59 +210,118 @@ function Home() {
   };
 
   const cleanupTracks = () => {
-    localTracksRef.current.forEach((track) => track.stop());
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
   };
 
-  // --------------------
-  // JSX
-  // --------------------
+  // -------------------- JSX --------------------
   return (
     <div className="d-flex vh-100 bg-light">
+      {/* Sidebar */}
       <div className="bg-white shadow p-3" style={{ width: "220px" }}>
         <h5 className="mb-3">Registered Users</h5>
         <ul className="list-group">
           {users.map((user) => (
-            <li key={user._id}
-                className={`list-group-item ${selectedUser === user ? "active" : ""}`}
-                style={{ cursor: "pointer" }}
-                onClick={() => setSelectedUser(selectedUser === user ? null : user)}>
+            <li
+              key={user._id}
+              className={`list-group-item ${
+                selectedUser === user ? "active" : ""
+              }`}
+              style={{ cursor: "pointer" }}
+              onClick={() =>
+                setSelectedUser(selectedUser === user ? null : user)
+              }
+            >
               {user.username}
             </li>
           ))}
         </ul>
       </div>
 
+      {/* Main Area */}
       <div className="flex-grow-1 d-flex justify-content-center align-items-center position-relative">
-        {!selectedUser && <div className="card shadow p-5 w-100 h-100">
-          <button className="btn btn-sm btn-danger position-absolute" style={{ top: 10, right: 10 }} onClick={handleLogout}>Logout</button>
-          <h1 className="mb-3 text-center">Hello, {username} 👋</h1>
-          <p className="text-secondary text-center">Welcome to your dashboard</p>
-        </div>}
+        {!selectedUser && (
+          <div className="card shadow p-5 w-100 h-100">
+            <button
+              className="btn btn-sm btn-danger position-absolute"
+              style={{ top: 10, right: 10 }}
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+            <h1 className="mb-3 text-center">Hello, {username} 👋</h1>
+            <p className="text-secondary text-center">
+              Welcome to your dashboard
+            </p>
+          </div>
+        )}
 
-        {selectedUser && <div className="card shadow position-relative w-100 h-100 p-3">
-          <button className="btn btn-sm btn-danger position-absolute" style={{ top: 10, right: 10 }} onClick={handleLogout}>Logout</button>
-          <h5>Chat with {selectedUser.username}</h5>
+        {selectedUser && (
+          <div className="card shadow position-relative w-100 h-100 p-3">
+            <button
+              className="btn btn-sm btn-danger position-absolute"
+              style={{ top: 10, right: 10 }}
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+            <h5>Chat with {selectedUser.username}</h5>
 
-          {!room && !incomingCall && <button className="btn btn-success my-2" onClick={initiateCall}>Start Video Call</button>}
+            {!room && !incomingCall && (
+              <button className="btn btn-success my-2" onClick={initiateCall}>
+                Start Video Call
+              </button>
+            )}
 
-          {incomingCall && <div className="alert alert-info mt-3">
-            Incoming call from <strong>{incomingCall.name}</strong>
-            <div className="mt-2">
-              <button className="btn btn-sm btn-primary me-2" onClick={acceptCall}>Accept</button>
-              <button className="btn btn-sm btn-danger" onClick={declineCall}>Decline</button>
-            </div>
-          </div>}
+            {incomingCall && (
+              <div className="alert alert-info mt-3">
+                Incoming call from <strong>{incomingCall.name}</strong>
+                <div className="mt-2">
+                  <button
+                    className="btn btn-sm btn-primary me-2"
+                    onClick={handleAcceptCall}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={handleDeclineCall}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {room && <div className="d-flex justify-content-center align-items-center mt-3 w-100 h-100">
-            <video ref={localVideoRef} autoPlay muted style={{ width: "50%", marginRight: "10px" }} />
-            <video ref={remoteVideoRef} autoPlay style={{ width: "50%" }} />
-            <div className="position-absolute" style={{ bottom: 20, right: 20 }}>
-              <button className="btn btn-danger" onClick={endCall}>End Call</button>
-            </div>
-          </div>}
-        </div>}
+            {room && (
+              <div className="video-container d-flex justify-content-center align-items-center mt-3 w-100 h-100">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="local-video"
+                  style={{ width: "50%", marginRight: "10px" }}
+                />
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="remote-video"
+                  style={{ width: "50%" }}
+                />
+                <div
+                  className="position-absolute"
+                  style={{ bottom: 20, right: 20 }}
+                >
+                  <button className="btn btn-danger" onClick={endCall}>
+                    End Call
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
