@@ -1,60 +1,56 @@
 // server.js
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const http = require("http");
-const { Server } = require("socket.io");
-const { AccessToken } = require("livekit-server-sdk"); // ✅ LiveKit v2.14+ compatible
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
+import http from "http";
+import { Server } from "socket.io";
+import { AccessToken } from "livekit-server-sdk";
+import fs from "fs";
+import { createClient } from "@deepgram/sdk";
+import SpeechModel from "./models/Speech.js"; // ✅ Schema for storing transcriptions
+import CounterModel from "./models/Counter.js";
+import CallModel from "./models/Call.js";
 
 dotenv.config();
+console.log("🔑 Deepgram Key:", process.env.DEEPGRAM_API_KEY ? "Loaded ✅" : "Missing ❌");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --------------------
-// MongoDB Connection
-// --------------------
+// -------------------- MongoDB Connection --------------------
 mongoose
   .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-// --------------------
-// Auth Routes
-// --------------------
-app.use("/api/auth", require("./routes/auth"));
+// -------------------- Import Routes --------------------
+import authRoutes from "./routes/auth.js";
+import speechRoutes from "./speech/speechRoutes.js";
+import transcriptionRoutes from "./routes/transcription.js";
 
-// --------------------
-// LiveKit Token Route
-// --------------------
+app.use("/api/auth", authRoutes);
+app.use("/api/speech", speechRoutes);
+app.use("/api/transcription", transcriptionRoutes);
+
+// -------------------- LiveKit Token API --------------------
 app.post("/api/livekit/token", async (req, res) => {
   const { userName, roomName } = req.body;
 
   try {
-    // ✅ Input validation
-    if (!userName || !roomName) {
-      return res.status(400).json({ error: "Missing userName or roomName" });
-    }
-
-    // ✅ Check LiveKit credentials
     const { LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL } = process.env;
-    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
-      console.error("❌ Missing LiveKit credentials in .env");
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL)
       return res.status(500).json({ error: "LiveKit configuration missing" });
-    }
 
-    // ✅ Create LiveKit Access Token (v2.x syntax)
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity: userName,
-      ttl: "1h", // Token valid for 1 hour
+      ttl: "1h",
     });
 
-    // ✅ Grant user permission to join, publish, and subscribe
     at.addGrant({
       roomJoin: true,
       room: roomName,
@@ -62,91 +58,259 @@ app.post("/api/livekit/token", async (req, res) => {
       canSubscribe: true,
     });
 
-    // ✅ Generate token
     const token = await at.toJwt();
-
-    console.log(`🎟️ Token generated for user: ${userName} | Room: ${roomName}`);
-
-    // ✅ Return token + LiveKit URL to frontend
-    return res.json({
-      token,
-      url: LIVEKIT_URL,
-    });
-  } catch (error) {
-    console.error("❌ Error generating LiveKit token:", error);
-    return res.status(500).json({ error: "Failed to generate LiveKit token" });
+    console.log(`🎟️ Token generated for ${userName} | Room: ${roomName}`);
+    return res.json({ token, url: LIVEKIT_URL });
+  } catch (err) {
+    console.error("❌ LiveKit token error:", err);
+    res.status(500).json({ error: "Failed to generate token" });
   }
 });
 
-// --------------------
-// Socket.IO for Call Signaling
-// --------------------
+// -------------------- Socket.IO + Deepgram --------------------
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*", // ⚠️ In production, set your actual frontend URL
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// Track connected users: userId → { socketId, userName }
 let onlineUsers = {};
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+
+// Map roomName -> registerNumber for active calls
+const roomToRegister = {};
+
+async function getNextRegisterNumber() {
+  const doc = await CounterModel.findOneAndUpdate(
+    { name: "registerNumber" },
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true }
+  );
+  const n = doc.seq;
+  const str = String(n);
+  return str.length < 3 ? str.padStart(3, "0") : str; // 001..999 then 1000+
+}
+
+// Text-based language detection using franc (fallback for Indian languages)
+async function detectLanguageFromText(text) {
+  if (!text || !text.trim() || text.trim().length < 3) return "unknown";
+  try {
+    // Dynamic import for CommonJS compatibility
+    const francModule = await import("franc");
+    const francFunc = francModule.default || francModule.franc || francModule;
+    const detected = francFunc(text.trim());
+    // Map franc codes to ISO 639-1 where possible
+    const langMap = {
+      "hin": "hi", // Hindi
+      "ben": "bn", // Bengali
+      "tam": "ta", // Tamil
+      "tel": "te", // Telugu
+      "mal": "ml", // Malayalam
+      "mar": "mr", // Marathi
+      "guj": "gu", // Gujarati
+      "kan": "kn", // Kannada
+      "pan": "pa", // Punjabi
+      "urd": "ur", // Urdu
+      "eng": "en", // English
+    };
+    return langMap[detected] || detected || "unknown";
+  } catch (e) {
+    console.warn("⚠️ Franc detection error:", e);
+    return "unknown";
+  }
+}
+
+// Optional Whisper fallback (requires OPENAI_API_KEY)
+async function transcribeWithWhisper(buffer, mimeType) {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+    const endpoint = "https://api.openai.com/v1/audio/transcriptions";
+    const blob = new Blob([buffer], { type: mimeType || "audio/webm" });
+    const form = new FormData();
+    form.append("model", "whisper-1");
+    form.append("response_format", "verbose_json");
+    form.append("file", blob, "audio." + (mimeType?.split("/")[1] || "webm"));
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("❌ Whisper API error:", res.status, errText);
+      return null;
+    }
+    const data = await res.json();
+    // verbose_json includes text and language (ISO 639-1 where possible)
+    return { text: data?.text || "", language: data?.language || "unknown" };
+  } catch (e) {
+    console.error("❌ Whisper fallback error:", e);
+    return null;
+  }
+}
 
 io.on("connection", (socket) => {
-  console.log("🔗 User connected:", socket.id);
+  console.log("🟢 Socket connected:", socket.id);
 
-  // ✅ Register user
   socket.on("register-user", ({ userId, userName }) => {
     if (!userId || !userName) return;
     onlineUsers[userId] = { socketId: socket.id, userName };
     console.log(`✅ Registered: ${userName} (${userId})`);
   });
 
-  // ✅ Initiate a call (sender → receiver)
+  // 🔹 Call events
   socket.on("call-user", ({ toUserId, fromUserId, roomName }) => {
     const callee = onlineUsers[toUserId];
     const caller = onlineUsers[fromUserId];
     if (callee && caller) {
+      // Create a registerNumber for this call if not exists
+      (async () => {
+        try {
+          if (!roomToRegister[roomName]) {
+            const registerNumber = await getNextRegisterNumber();
+            roomToRegister[roomName] = registerNumber;
+            await CallModel.create({
+              registerNumber,
+              roomName,
+              participants: [caller.userName, callee.userName],
+            });
+            console.log(`#️⃣ Call ${roomName} -> register ${registerNumber}`);
+          }
+        } catch (e) {
+          console.error("❌ Failed to create call register:", e);
+        }
+      })();
       io.to(callee.socketId).emit("incoming-call", {
         fromUserId,
         fromUserName: caller.userName,
         roomName,
       });
-      console.log(`📞 ${caller.userName} is calling ${callee.userName} in room ${roomName}`);
-    } else {
-      console.log("⚠️ Call-user failed — callee or caller not found.");
+      console.log(`📞 ${caller.userName} is calling ${callee.userName}`);
     }
   });
 
-  // ✅ Handle call accept/reject
   socket.on("call-response", ({ toUserId, accepted, roomName }) => {
     const caller = onlineUsers[toUserId];
     if (caller) {
       io.to(caller.socketId).emit("call-response", { accepted, roomName });
-      console.log(
-        `📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for room ${roomName} (to ${caller.userName})`
-      );
-    } else {
-      console.log("⚠️ Caller not found for call-response");
+      console.log(`📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for ${roomName}`);
     }
   });
 
-  // ✅ Handle disconnect
+  // ✅ Deepgram Audio Transcription (accepts binary or base64)
+  socket.on("audio-stream", async ({ audioBuffer, username, roomName, mimetype }) => {
+    try {
+      if (!audioBuffer || !username) return;
+      // Reconstruct Buffer from multiple possible shapes sent over socket
+      let buffer;
+      if (Buffer.isBuffer(audioBuffer)) {
+        buffer = audioBuffer;
+      } else if (typeof audioBuffer === "string") {
+        buffer = Buffer.from(audioBuffer, "base64");
+      } else if (audioBuffer && typeof audioBuffer === "object") {
+        if (ArrayBuffer.isView(audioBuffer)) {
+          buffer = Buffer.from(audioBuffer.buffer);
+        } else if (audioBuffer instanceof ArrayBuffer) {
+          buffer = Buffer.from(new Uint8Array(audioBuffer));
+        } else if (Array.isArray(audioBuffer.data)) {
+          // Case: { type: 'Buffer', data: number[] }
+          buffer = Buffer.from(audioBuffer.data);
+        }
+      }
+      if (!buffer) {
+        console.warn("⚠️ Unable to reconstruct audio buffer; skipping.");
+        return;
+      }
+      console.log(`🔊 Received audio chunk ${buffer.length} bytes, mimetype: ${mimetype || "unknown"}`);
+      const safeExt = mimetype && mimetype.includes("ogg") ? "ogg" : "webm";
+      const tempFilePath = `temp_${Date.now()}.${safeExt}`;
+      fs.writeFileSync(tempFilePath, buffer);
+
+      const dgMime = (mimetype || `audio/${safeExt}`).split(";")[0];
+
+      // Run Deepgram and Whisper in parallel (when OPENAI_API_KEY is present)
+      const deepgramPromise = (async () => {
+        try {
+          const resp = await deepgram.listen.prerecorded.transcribeFile(
+            fs.createReadStream(tempFilePath),
+            {
+              model: "nova-2",
+              smart_format: true,
+              detect_language: true,
+              punctuate: true,
+              mimetype: dgMime,
+              alternate_languages: [
+                "en","hi","bn","ta","te","ml","mr","gu","kn","pa","ur",
+              ],
+              keywords: [
+                "bharat","bhargav","mumbai","delhi","bengaluru","hyderabad","chennai","kolkata","ahmedabad","pune",
+              ],
+            }
+          );
+          const root = resp?.results || resp?.result?.results;
+          const text = root?.channels?.[0]?.alternatives?.[0]?.transcript || "";
+          const lang = root?.channels?.[0]?.detected_language || "unknown";
+          return { text, lang, engine: "deepgram", debugRoot: !!root };
+        } catch (e) {
+          console.error("❌ Deepgram error:", e);
+          return { text: "", lang: "unknown", engine: "deepgram" };
+        }
+      })();
+
+      const whisperPromise = transcribeWithWhisper(buffer, dgMime);
+      const [dgResult, whisperResult] = await Promise.allSettled([deepgramPromise, whisperPromise]);
+
+      fs.unlinkSync(tempFilePath);
+
+      const dg = dgResult.status === "fulfilled" ? dgResult.value : null;
+      const wh = whisperResult.status === "fulfilled" ? whisperResult.value : null;
+
+      // Choose the best available transcript
+      const finalText = (dg?.text && dg.text.trim()) ? dg.text : ((wh?.text && wh.text.trim()) ? wh.text : "");
+      let finalLang = (dg?.text && dg.text.trim() && dg?.lang && dg.lang !== "unknown")
+        ? dg.lang
+        : (wh?.language || dg?.lang || "unknown");
+      
+      // Use franc as secondary detector if language is still unknown
+      if (finalText && (finalLang === "unknown" || !finalLang)) {
+        const francLang = await detectLanguageFromText(finalText);
+        if (francLang && francLang !== "unknown") {
+          finalLang = francLang;
+          console.log(`🔍 Franc detected language: ${finalLang}`);
+        }
+      }
+      
+      const engineUsed = (dg?.text && dg.text.trim()) ? "Deepgram" : ((wh?.text && wh.text.trim()) ? "Whisper" : "none");
+
+      if (finalText) {
+        const speechDoc = new SpeechModel({
+          username,
+          transcription: finalText,
+          language: finalLang || "unknown",
+          roomName,
+          registerNumber: roomToRegister[roomName],
+        });
+        await speechDoc.save();
+        console.log(`💾 Saved (${engineUsed}): ${username} (${finalLang || "unknown"}) [${roomToRegister[roomName] || "no-reg"}] -> ${finalText}`);
+      } else {
+        console.log("⚠️ No speech detected after both engines, skipping save.");
+      }
+    } catch (err) {
+      console.error("❌ Error transcribing audio:", err);
+    }
+  });
+
   socket.on("disconnect", () => {
-    for (let userId in onlineUsers) {
-      if (onlineUsers[userId].socketId === socket.id) {
-        console.log(`❌ Disconnected: ${onlineUsers[userId].userName}`);
-        delete onlineUsers[userId];
+    for (let uid in onlineUsers) {
+      if (onlineUsers[uid].socketId === socket.id) {
+        console.log(`🔴 Disconnected: ${onlineUsers[uid].userName}`);
+        delete onlineUsers[uid];
         break;
       }
     }
   });
 });
 
-// --------------------
-// Start Server
-// --------------------
+// -------------------- Start Server --------------------
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} with Socket.IO & LiveKit`);
-});
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
