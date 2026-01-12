@@ -1,0 +1,23 @@
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:19","message":"Configuring CORS middleware","data":{"corsOptions":"default-allow-all"},"timestamp":1768210761191}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:21","message":"Express JSON middleware configured","data":{},"timestamp":1768210761194}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H4","location":"server.js:335","message":"Server started","data":{"port":"8000"},"timestamp":1768210761199}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:19","message":"Configuring CORS middleware","data":{"corsOptions":"default-allow-all"},"timestamp":1768210985653}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:21","message":"Express JSON middleware configured","data":{},"timestamp":1768210985655}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H4","location":"server.js:335","message":"Server started","data":{"port":"8000"},"timestamp":1768210985661}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:19","message":"Configuring CORS middleware","data":{"corsOptions":"default-allow-all"},"timestamp":1768211159427}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:21","message":"Express JSON middleware configured","data":{},"timestamp":1768211159429}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H4","location":"server.js:335","message":"Server started","data":{"port":8000},"timestamp":1768211159435}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:19","message":"Configuring CORS middleware","data":{"corsOptions":"default-allow-all"},"timestamp":1768211435599}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H1","location":"server.js:21","message":"Express JSON middleware configured","data":{},"timestamp":1768211435601}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H4","location":"server.js:335","message":"Server started","data":{"port":8000},"timestamp":1768211435607}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H3","location":"server.js:79","message":"Socket handshake","data":{"origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211458313}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H3","location":"server.js:79","message":"Socket handshake","data":{"origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211470751}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/register","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211485269}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/login","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211499834}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/all-users","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211499997}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/all-users","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211500038}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H3","location":"server.js:79","message":"Socket handshake","data":{"origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211539028}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/register","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211558804}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/login","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211569558}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/all-users","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211569717}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"H2","location":"server.js:26","message":"Incoming request","data":{"path":"/api/auth/all-users","origin":"http://localhost:3001","host":"localhost:8000"},"timestamp":1768211569763}

@@ -18,7 +18,6 @@ console.log("🔑 Deepgram Key:", process.env.DEEPGRAM_API_KEY ? "Loaded ✅" : 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 // -------------------- MongoDB Connection --------------------
 mongoose
   .connect(process.env.MONGO_URI, {
@@ -40,6 +39,7 @@ app.use("/api/transcription", transcriptionRoutes);
 // -------------------- LiveKit Token API --------------------
 app.post("/api/livekit/token", async (req, res) => {
   const { userName, roomName } = req.body;
+
 
   try {
     const { LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL } = process.env;
@@ -72,6 +72,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
+
 
 let onlineUsers = {};
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
@@ -240,10 +241,10 @@ io.on("connection", (socket) => {
               punctuate: true,
               mimetype: dgMime,
               alternate_languages: [
-                "en","hi","bn","ta","te","ml","mr","gu","kn","pa","ur",
+                "en", "hi", "bn", "ta", "te", "ml", "mr", "gu", "kn", "pa", "ur",
               ],
               keywords: [
-                "bharat","bhargav","mumbai","delhi","bengaluru","hyderabad","chennai","kolkata","ahmedabad","pune",
+                "bharat", "bhargav", "mumbai", "delhi", "bengaluru", "hyderabad", "chennai", "kolkata", "ahmedabad", "pune",
               ],
             }
           );
@@ -270,7 +271,8 @@ io.on("connection", (socket) => {
       let finalLang = (dg?.text && dg.text.trim() && dg?.lang && dg.lang !== "unknown")
         ? dg.lang
         : (wh?.language || dg?.lang || "unknown");
-      
+
+
       // Use franc as secondary detector if language is still unknown
       if (finalText && (finalLang === "unknown" || !finalLang)) {
         const francLang = await detectLanguageFromText(finalText);
@@ -279,7 +281,8 @@ io.on("connection", (socket) => {
           console.log(`🔍 Franc detected language: ${finalLang}`);
         }
       }
-      
+
+
       const engineUsed = (dg?.text && dg.text.trim()) ? "Deepgram" : ((wh?.text && wh.text.trim()) ? "Whisper" : "none");
 
       if (finalText) {
@@ -312,5 +315,22 @@ io.on("connection", (socket) => {
 });
 
 // -------------------- Start Server --------------------
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const startServer = (port) => {
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`⚠️ Port ${port} is busy, trying ${port + 1}...`);
+      server.close(); // Close the failed instance just in case
+      server.removeAllListeners('error'); // Remove this listener to avoid stacking
+      startServer(port + 1); // Retry with new port
+    } else {
+      console.error("❌ Server error:", err);
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+  });
+};
+
+const PORT = parseInt(process.env.PORT || 5000, 10);
+startServer(PORT);

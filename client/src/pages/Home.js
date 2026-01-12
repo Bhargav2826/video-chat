@@ -1,5 +1,5 @@
 // Home.js
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
@@ -7,7 +7,7 @@ import { Room, RoomEvent, createLocalTracks } from "livekit-client";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-const SOCKET_URL = "http://localhost:5000";
+const SOCKET_URL = "http://localhost:8000";
 const LIVEKIT_URL = "wss://video-chat-wfvq5jjj.livekit.cloud";
 const socket = io(SOCKET_URL, { autoConnect: true });
 
@@ -22,7 +22,7 @@ function Home() {
   const [room, setRoom] = useState(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
-  const [isCalling, setIsCalling] = useState(false);
+
   const [callStatus, setCallStatus] = useState("idle");
   const [localTracks, setLocalTracks] = useState(null);
   const [focusedVideo, setFocusedVideo] = useState("remote");
@@ -48,7 +48,7 @@ function Home() {
     const fetchUsers = async () => {
       try {
         setIsLoadingUsers(true);
-        const res = await axios.get("http://localhost:5000/api/auth/all-users");
+        const res = await axios.get("http://localhost:8000/api/auth/all-users");
         setUsers(res.data.filter((u) => u.username !== username));
         setUsersError("");
       } catch (err) {
@@ -187,7 +187,7 @@ function Home() {
           setTimeout(() => {
             try {
               if (recorder.state !== "recording") recorder.start();
-            } catch (_) {}
+            } catch (_) { }
           }, 200);
         }
       }, 12000);
@@ -205,7 +205,7 @@ function Home() {
       if (recorderRef.current) {
         try {
           if (recorderRef.current.state === "recording") recorderRef.current.stop();
-        } catch (_) {}
+        } catch (_) { }
         recorderRef.current = null;
       }
       if (audioStreamRef.current) {
@@ -218,10 +218,10 @@ function Home() {
   };
 
   // -------------------- Accept / Join Call --------------------
-  const acceptCall = async (roomName, callerName) => {
+  const acceptCall = useCallback(async (roomName, callerName) => {
     try {
       console.log(`📞 Accepting call for room: ${roomName}`);
-      const res = await fetch("http://localhost:5000/api/livekit/token", {
+      const res = await fetch("http://localhost:8000/api/livekit/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomName, userName: callerName }),
@@ -265,7 +265,7 @@ function Home() {
     } catch (error) {
       console.error("❌ Failed to join LiveKit room:", error);
     }
-  };
+  }, [localTracks, username]);
 
   // -------------------- Initiate Call --------------------
   const initiateCall = async () => {
@@ -274,7 +274,7 @@ function Home() {
     const fromUserId = userId || username;
     const roomName = `room_${[username, selectedUser.username].sort().join("_")}`;
 
-    setIsCalling(true);
+
     setCallStatus("calling");
 
     console.log("🎥 Preparing camera before call...");
@@ -314,7 +314,7 @@ function Home() {
       socket.off("incoming-call");
       socket.off("call-response");
     };
-  }, [username, localTracks]);
+  }, [username, localTracks, acceptCall]);
 
   // -------------------- End Call --------------------
   const endCall = () => {
@@ -326,7 +326,7 @@ function Home() {
     setLocalTracks(null);
     setIsPreviewing(false);
     setIsInCall(false);
-    setIsCalling(false);
+
     setCallStatus("idle");
     setFocusedVideo("remote");
 
