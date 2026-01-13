@@ -220,7 +220,9 @@ function Home() {
   // -------------------- Accept / Join Call --------------------
   const acceptCall = useCallback(async (roomName, callerName) => {
     try {
-      console.log(`📞 Accepting call for room: ${roomName}`);
+      console.log(`📞 Joining room: ${roomName} as ${username}`);
+
+      // Get LiveKit token
       const res = await fetch("/api/livekit/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -229,85 +231,109 @@ function Home() {
       const data = await res.json();
       if (!data.token) throw new Error("No token received!");
 
-      const livekitRoom = new Room();
+      // Create LiveKit room
+      const livekitRoom = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      });
 
-      // Set up event listeners BEFORE connecting
-      livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        console.log(`📹 Track subscribed: ${track.kind} from ${participant.identity}`);
-        if (track.kind === "video" && remoteVideoRef.current) {
-          track.attach(remoteVideoRef.current);
-          tryPlay(remoteVideoRef.current);
-          console.log("✅ Remote video attached and playing");
+      // Setup event handlers BEFORE connecting
+      livekitRoom.on(RoomEvent.TrackSubscribed, async (track, publication, participant) => {
+        console.log(`📹 NEW TRACK from ${participant.identity}: ${track.kind}`);
+
+        if (track.kind === "video") {
+          if (remoteVideoRef.current) {
+            // Clear any existing video first
+            if (remoteVideoRef.current.srcObject) {
+              remoteVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
+            }
+
+            // Attach the new track
+            track.attach(remoteVideoRef.current);
+            remoteVideoRef.current.play().catch(e => console.log("Play failed:", e));
+            console.log("✅ REMOTE VIDEO ATTACHED");
+          }
         }
       });
 
-      livekitRoom.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-        console.log(`📹 Track unsubscribed: ${track.kind} from ${participant.identity}`);
+      livekitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
         if (track.kind === "video") {
           track.detach();
+          console.log("📹 Remote video detached");
         }
       });
 
-      livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
-        console.log(`👤 Participant connected: ${participant.identity}`);
-      });
-
-      // Connect to the room
+      // Connect to room
       await livekitRoom.connect(LIVEKIT_URL, data.token);
-      console.log("✅ Connected to LiveKit room");
+      console.log("✅ CONNECTED TO ROOM");
 
-      // Get or create local tracks
-      let tracksToUse = localTracks;
-      if (!tracksToUse || tracksToUse.length === 0) {
-        console.log("🎥 Creating new local tracks...");
-        tracksToUse = await createLocalTracks({
+      // Create or reuse local tracks
+      let tracks = localTracks;
+      if (!tracks || tracks.length === 0) {
+        console.log("🎥 Creating camera/mic tracks...");
+        tracks = await createLocalTracks({
           audio: true,
-          video: { facingMode: "user" },
+          video: { facingMode: "user", width: 1280, height: 720 },
         });
-        setLocalTracks(tracksToUse);
+        setLocalTracks(tracks);
       }
 
-      // Publish all tracks
-      console.log("📤 Publishing local tracks...");
-      for (const track of tracksToUse) {
-        await livekitRoom.localParticipant.publishTrack(track);
-        console.log(`✅ Published ${track.kind} track`);
+      // Publish tracks to room
+      console.log("📤 Publishing tracks...");
+      for (const track of tracks) {
+        await livekitRoom.localParticipant.publishTrack(track, {
+          videoCodec: 'vp8',
+        });
+        console.log(`✅ Published ${track.kind}`);
       }
 
       // Attach local video
-      const localVideoTrack = tracksToUse.find((t) => t.kind === "video");
-      if (localVideoTrack && localVideoRef.current) {
-        localVideoTrack.attach(localVideoRef.current);
-        await tryPlay(localVideoRef.current);
-        console.log("✅ Local video attached and playing");
+      const videoTrack = tracks.find(t => t.kind === "video");
+      if (videoTrack && localVideoRef.current) {
+        // Clear existing
+        if (localVideoRef.current.srcObject) {
+          localVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
+        }
+
+        videoTrack.attach(localVideoRef.current);
+        localVideoRef.current.muted = true; // Prevent echo
+        localVideoRef.current.play().catch(e => console.log("Local play failed:", e));
+        console.log("✅ LOCAL VIDEO ATTACHED");
       }
 
-      // Handle existing remote participants and their tracks
-      console.log(`👥 Remote participants: ${livekitRoom.remoteParticipants.size}`);
+      // Wait a bit for remote participants to publish
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Check for existing remote tracks
+      console.log(`👥 ${livekitRoom.remoteParticipants.size} remote participants`);
       livekitRoom.remoteParticipants.forEach((participant) => {
-        console.log(`👤 Checking participant: ${participant.identity}`);
-        participant.trackPublications.forEach((publication) => {
-          if (publication.isSubscribed && publication.track) {
-            console.log(`📹 Found existing ${publication.track.kind} track from ${participant.identity}`);
-            if (publication.track.kind === "video" && remoteVideoRef.current) {
-              publication.track.attach(remoteVideoRef.current);
-              tryPlay(remoteVideoRef.current);
-              console.log("✅ Existing remote video attached");
+        console.log(`Checking ${participant.identity}...`);
+        participant.trackPublications.forEach((pub) => {
+          if (pub.isSubscribed && pub.track && pub.track.kind === "video") {
+            console.log(`📹 Found existing video from ${participant.identity}`);
+            if (remoteVideoRef.current) {
+              pub.track.attach(remoteVideoRef.current);
+              remoteVideoRef.current.play().catch(e => console.log("Play failed:", e));
+              console.log("✅ EXISTING REMOTE VIDEO ATTACHED");
             }
           }
         });
       });
 
-      setCallStatus("connected");
+      // Update state
       setRoom(livekitRoom);
       roomRef.current = livekitRoom;
+      setCallStatus("connected");
       setIsPreviewing(true);
       setIsInCall(true);
 
-      // Start sending audio chunks to server for transcription
+      // Start audio transcription
       startAudioCapture(username, roomName);
+
+      console.log("🎉 CALL SETUP COMPLETE");
     } catch (error) {
-      console.error("❌ Failed to join LiveKit room:", error);
+      console.error("❌ Call failed:", error);
+      alert(`Failed to join call: ${error.message}`);
     }
   }, [localTracks, username]);
 
