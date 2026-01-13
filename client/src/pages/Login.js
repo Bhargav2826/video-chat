@@ -16,8 +16,23 @@ function Login() {
       navigate("/home");
     } catch (err) {
       console.error("Login Error:", err);
-      const errorMessage = err.response?.data?.error || err.message || JSON.stringify(err);
-      alert(`Login failed: ${errorMessage}`);
+      console.error("Error Response:", err.response);
+
+      // Extract error message from various possible formats
+      let errorMessage = "Unknown error";
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else {
+          errorMessage = JSON.stringify(err.response.data);
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      alert(`Login failed: ${errorMessage}\n\nStatus: ${err.response?.status || 'N/A'}`);
     }
   };
 
