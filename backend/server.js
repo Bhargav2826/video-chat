@@ -27,7 +27,7 @@ const clientBuildPath = path.join(__dirname, "../client/build");
 console.log("📂 Client Build Path:", clientBuildPath);
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // --- Static Files (Frontend) ---

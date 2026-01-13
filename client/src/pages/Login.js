@@ -15,7 +15,9 @@ function Login() {
       localStorage.setItem("username", res.data.username);
       navigate("/home");
     } catch (err) {
-      alert(err.response?.data?.error || "Login failed");
+      console.error("Login Error:", err);
+      const errorMessage = err.response?.data?.error || err.message || JSON.stringify(err);
+      alert(`Login failed: ${errorMessage}`);
     }
   };
 
