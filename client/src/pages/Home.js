@@ -249,6 +249,16 @@ function Home() {
         }
       });
 
+      // Also handle existing remote participants (in case they joined before us)
+      livekitRoom.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          if (publication.track && publication.track.kind === "video" && remoteVideoRef.current) {
+            publication.track.attach(remoteVideoRef.current);
+            tryPlay(remoteVideoRef.current);
+          }
+        });
+      });
+
       livekitRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
         console.log("📹 Remote track subscribed:", track.kind, "from", participant.identity);
         if (track.kind === "video" && remoteVideoRef.current) {
