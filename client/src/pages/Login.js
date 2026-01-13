@@ -30,6 +30,26 @@ function Login() {
           <input type="password" className="form-control mb-3" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
           <button type="submit" className="btn btn-primary w-100">Login</button>
         </form>
+
+        <div className="mt-4 p-2 border rounded bg-light small">
+          <p className="fw-bold mb-1">🔧 Mobile Debugger</p>
+          <p className="mb-1 text-break">URL: {window.location.origin}</p>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary w-100 mb-2"
+            onClick={async () => {
+              try {
+                alert(`Testing connection to: ${window.location.origin}/debug-files`);
+                const res = await axios.get("/debug-files");
+                alert(`✅ Server Reachable!\nData: ${JSON.stringify(res.data).slice(0, 100)}...`);
+              } catch (e) {
+                alert(`❌ Server Connection Failed:\n${e.message}\n${JSON.stringify(e)}`);
+              }
+            }}
+          >
+            Test Connection
+          </button>
+        </div>
       </div>
     </div>
   );
