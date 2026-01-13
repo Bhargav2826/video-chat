@@ -241,13 +241,22 @@ function Home() {
         setLocalTracks(tracksToUse);
       }
 
+      // Publish and attach all tracks
       tracksToUse.forEach((track) => {
         livekitRoom.localParticipant.publishTrack(track);
-        if (track.kind === "video" && localVideoRef.current) {
-          track.attach(localVideoRef.current);
-          tryPlay(localVideoRef.current); // Ensure local video plays
-        }
       });
+
+      // Ensure local video is attached and playing (do this after publishing)
+      const localVideoTrack = tracksToUse.find((t) => t.kind === "video");
+      if (localVideoTrack && localVideoRef.current) {
+        // Detach any existing tracks first to avoid conflicts
+        const existingTracks = localVideoRef.current.srcObject?.getTracks() || [];
+        existingTracks.forEach(track => track.stop());
+
+        localVideoTrack.attach(localVideoRef.current);
+        await tryPlay(localVideoRef.current);
+        console.log("✅ Local video attached and playing");
+      }
 
       // Also handle existing remote participants (in case they joined before us)
       livekitRoom.remoteParticipants.forEach((participant) => {
