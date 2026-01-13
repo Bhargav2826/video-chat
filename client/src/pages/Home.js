@@ -224,7 +224,7 @@ function Home() {
       const res = await fetch("/api/livekit/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomName, userName: callerName }),
+        body: JSON.stringify({ roomName, userName: username }), // Use receiver's username, not caller's
       });
       const data = await res.json();
       if (!data.token) throw new Error("No token received!");
@@ -245,12 +245,15 @@ function Home() {
         livekitRoom.localParticipant.publishTrack(track);
         if (track.kind === "video" && localVideoRef.current) {
           track.attach(localVideoRef.current);
+          tryPlay(localVideoRef.current); // Ensure local video plays
         }
       });
 
       livekitRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+        console.log("📹 Remote track subscribed:", track.kind, "from", participant.identity);
         if (track.kind === "video" && remoteVideoRef.current) {
           track.attach(remoteVideoRef.current);
+          tryPlay(remoteVideoRef.current); // Ensure remote video plays
         }
       });
 
