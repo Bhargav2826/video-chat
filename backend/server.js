@@ -12,6 +12,20 @@ import SpeechModel from "./models/Speech.js"; // ✅ Schema for storing transcri
 import CounterModel from "./models/Counter.js";
 import CallModel from "./models/Call.js";
 
+
+//DEBUG: Check paths
+import fs from "fs";
+const clientBuildPath = path.join(__dirname, "../client/build");
+console.log("📂 Server __dirname:", __dirname);
+console.log("📂 Client Build Path:", clientBuildPath);
+if (fs.existsSync(clientBuildPath)) {
+  console.log("✅ Client build directory exists.");
+  console.log("📄 Files in build:", fs.readdirSync(clientBuildPath));
+} else {
+  console.error("❌ Client build directory MISSING at:", clientBuildPath);
+}
+//DEBUG END
+
 dotenv.config();
 console.log("🔑 Deepgram Key:", process.env.DEEPGRAM_API_KEY ? "Loaded ✅" : "Missing ❌");
 
