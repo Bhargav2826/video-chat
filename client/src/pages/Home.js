@@ -290,11 +290,6 @@ function Home() {
       // Attach local video
       const videoTrack = tracks.find(t => t.kind === "video");
       if (videoTrack && localVideoRef.current) {
-        // Clear existing
-        if (localVideoRef.current.srcObject) {
-          localVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
-        }
-
         videoTrack.attach(localVideoRef.current);
         localVideoRef.current.muted = true; // Prevent echo
         localVideoRef.current.play().catch(e => console.log("Local play failed:", e));
