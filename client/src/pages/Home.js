@@ -7,7 +7,7 @@ import { Room, RoomEvent, createLocalTracks } from "livekit-client";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-const SOCKET_URL = "http://localhost:8000";
+const SOCKET_URL = "/";
 const LIVEKIT_URL = "wss://video-chat-wfvq5jjj.livekit.cloud";
 const socket = io(SOCKET_URL, { autoConnect: true });
 
@@ -48,7 +48,7 @@ function Home() {
     const fetchUsers = async () => {
       try {
         setIsLoadingUsers(true);
-        const res = await axios.get("http://localhost:8000/api/auth/all-users");
+        const res = await axios.get("/api/auth/all-users");
         setUsers(res.data.filter((u) => u.username !== username));
         setUsersError("");
       } catch (err) {
@@ -221,7 +221,7 @@ function Home() {
   const acceptCall = useCallback(async (roomName, callerName) => {
     try {
       console.log(`📞 Accepting call for room: ${roomName}`);
-      const res = await fetch("http://localhost:8000/api/livekit/token", {
+      const res = await fetch("/api/livekit/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomName, userName: callerName }),

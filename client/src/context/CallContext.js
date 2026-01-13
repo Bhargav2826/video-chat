@@ -13,7 +13,7 @@ export const CallProvider = ({ children }) => {
   const joinRoom = async (userName, roomName) => {
     try {
       // 1️⃣ Fetch the token from your backend
-      const res = await axios.post("http://localhost:8000/api/livekit/token", {
+      const res = await axios.post("/api/livekit/token", {
         userName,
         roomName,
       });
