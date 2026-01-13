@@ -1,4 +1,3 @@
-// server.js
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -7,46 +6,73 @@ import http from "http";
 import { Server } from "socket.io";
 import { AccessToken } from "livekit-server-sdk";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { createClient } from "@deepgram/sdk";
-import SpeechModel from "./models/Speech.js"; // ✅ Schema for storing transcriptions
+import SpeechModel from "./models/Speech.js";
 import CounterModel from "./models/Counter.js";
 import CallModel from "./models/Call.js";
 
-
-//DEBUG: Check paths
-import fs from "fs";
-const clientBuildPath = path.join(__dirname, "../client/build");
-console.log("📂 Server __dirname:", __dirname);
-console.log("📂 Client Build Path:", clientBuildPath);
-if (fs.existsSync(clientBuildPath)) {
-  console.log("✅ Client build directory exists.");
-  console.log("📄 Files in build:", fs.readdirSync(clientBuildPath));
-} else {
-  console.error("❌ Client build directory MISSING at:", clientBuildPath);
-}
-//DEBUG END
-
-dotenv.config();
-console.log("🔑 Deepgram Key:", process.env.DEEPGRAM_API_KEY ? "Loaded ✅" : "Missing ❌");
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-// -------------------- MongoDB Connection --------------------
-mongoose
-  .connect(process.env.MONGO_URI, {
-  })
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
-
-// -------------------- Import Routes --------------------
+// Routes
 import authRoutes from "./routes/auth.js";
 import speechRoutes from "./speech/speechRoutes.js";
 import transcriptionRoutes from "./routes/transcription.js";
 
+// --- Setup Paths & Config ---
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config();
+
+console.log("📂 Server __dirname:", __dirname);
+const clientBuildPath = path.join(__dirname, "../client/build");
+console.log("📂 Client Build Path:", clientBuildPath);
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// --- Static Files (Frontend) ---
+// Serve static files BEFORE API routes to catch specific assets
+// Check if build exists, log it
+if (fs.existsSync(clientBuildPath)) {
+  console.log("✅ Client build directory exists.");
+} else {
+  console.error("❌ Client build directory MISSING at:", clientBuildPath);
+}
+app.use(express.static(clientBuildPath));
+
+// --- Debug Endpoint ---
+app.get("/debug-files", (req, res) => {
+  try {
+    if (fs.existsSync(clientBuildPath)) {
+      const files = fs.readdirSync(clientBuildPath);
+      // Recursively get js files to verify main.js
+      res.json({ path: clientBuildPath, exists: true, rootFiles: files });
+    } else {
+      res.json({ path: clientBuildPath, exists: false });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// -------------------- MongoDB Connection --------------------
+mongoose
+  .connect(process.env.MONGO_URI, {})
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/speech", speechRoutes);
 app.use("/api/transcription", transcriptionRoutes);
+
+// -------------------- Catch-All for React Router --------------------
+// Define this function to be reused or placed at the end? 
+// No, we will define the catch-all handler here but place it AFTER API routes.
+// However, the original code had it at the bottom. I'll just remove the OLD static serve block at the bottom
+// and let the catch-all be handled there (or move it up).
+// Actually, in Express, catch-all *must* be last.
+// So I will only replace the TOP part here, and DELETE the bottom `Serve Frontend` block in a separate call.
+
 
 // -------------------- LiveKit Token API --------------------
 app.post("/api/livekit/token", async (req, res) => {
@@ -326,14 +352,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// -------------------- Serve Frontend --------------------
-import path from "path";
-import { fileURLToPath } from "url";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-app.use(express.static(path.join(__dirname, "../client/build")));
+// -------------------- Catch-All (SPA) --------------------
+// Ensure this matches the variable defined at the top
 app.get(/(.*)/, (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/build/index.html"));
+  res.sendFile(path.join(clientBuildPath, "index.html"));
 });
 
 // -------------------- Start Server --------------------
