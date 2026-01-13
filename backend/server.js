@@ -46,9 +46,26 @@ app.get("/debug-files", (req, res) => {
     if (fs.existsSync(clientBuildPath)) {
       const files = fs.readdirSync(clientBuildPath);
       // Recursively get js files to verify main.js
-      res.json({ path: clientBuildPath, exists: true, rootFiles: files });
+      res.json({
+        path: clientBuildPath,
+        exists: true,
+        rootFiles: files,
+        env: {
+          MONGO_URI: process.env.MONGO_URI ? "Set ✅" : "MISSING ❌",
+          JWT_SECRET: process.env.JWT_SECRET ? "Set ✅" : "MISSING ❌",
+          PORT: process.env.PORT
+        },
+        dbState: mongoose.connection.readyState // 0: disconnected, 1: connected, 2: connecting, 3: disconnecting
+      });
     } else {
-      res.json({ path: clientBuildPath, exists: false });
+      res.json({
+        path: clientBuildPath,
+        exists: false,
+        env: {
+          MONGO_URI: process.env.MONGO_URI ? "Set ✅" : "MISSING ❌",
+          JWT_SECRET: process.env.JWT_SECRET ? "Set ✅" : "MISSING ❌",
+        }
+      });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
