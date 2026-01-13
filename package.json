@@ -4,6 +4,7 @@
     "private": true,
     "scripts": {
         "build": "cd client && npm install && npm run build && cd ../backend && npm install",
+        "postinstall": "npm run build",
         "start": "cd backend && node server.js"
     }
 }
