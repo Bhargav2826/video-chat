@@ -13,12 +13,20 @@ function Login() {
       const res = await axios.post("/api/auth/login", { email, password });
       localStorage.setItem("userId", res.data.id);
       localStorage.setItem("username", res.data.username);
-      navigate("/home");
+      localStorage.setItem("role", res.data.role);
+
+      // Redirect based on role
+      if (res.data.role === "faculty") {
+        navigate("/faculty");
+      } else if (res.data.role === "parent") {
+        navigate("/parent");
+      } else {
+        navigate("/home"); // Student or default
+      }
     } catch (err) {
       console.error("Login Error:", err);
       console.error("Error Response:", err.response);
 
-      // Extract error message from various possible formats
       let errorMessage = "Unknown error";
       if (err.response?.data) {
         if (typeof err.response.data === 'string') {
@@ -31,8 +39,7 @@ function Login() {
       } else if (err.message) {
         errorMessage = err.message;
       }
-
-      alert(`Login failed: ${errorMessage}\n\nStatus: ${err.response?.status || 'N/A'}`);
+      alert(`Login failed: ${errorMessage}`);
     }
   };
 

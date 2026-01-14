@@ -10,7 +10,7 @@ const router = express.Router();
 // --------------------
 router.post("/register", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -21,7 +21,7 @@ router.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = new User({ username, email, password: hashedPassword });
+    const newUser = new User({ username, email, password: hashedPassword, role: role || "student" });
     const user = await newUser.save();
     res.status(201).json({ message: "User registered", user });
   } catch (err) {
@@ -49,12 +49,12 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, username: user.username },
+      { id: user._id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "111h" }
     );
 
-    res.json({ token, username: user.username, id: user._id });
+    res.json({ token, username: user.username, id: user._id, role: user.role });
   } catch (err) {
     console.error("❌ Login error:", err);
     res.status(500).json({ error: err.message || "Server error" });

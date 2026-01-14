@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
+import Faculty from "./pages/Faculty";
+import Parent from "./pages/Parent";
 import { CallProvider, useCall } from "./context/CallContext";
 // -----------------------------
 // Video Call Page Component
@@ -125,6 +127,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/home" element={<Home />} />
+          <Route path="/faculty" element={<Faculty />} />
+          <Route path="/parent" element={<Parent />} />
 
           {/* New video call test route */}
           <Route path="/call" element={<VideoCallUI />} />
