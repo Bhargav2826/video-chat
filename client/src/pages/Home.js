@@ -35,6 +35,7 @@ function Home() {
 
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [captions, setCaptions] = useState([]); // Array of {username, text, language}
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -181,7 +182,7 @@ function Home() {
 
       recorder.start();
 
-      // stop & restart regularly to force chunking (~12s to improve ASR quality)
+      // stop & restart regularly to force chunking (~6s for faster multilingual detection)
       recorderIntervalRef.current = setInterval(() => {
         if (recorder.state === "recording") {
           recorder.stop();
@@ -192,7 +193,7 @@ function Home() {
             } catch (_) { }
           }, 200);
         }
-      }, 12000);
+      }, 6000);
     } catch (err) {
       console.error("🎙️ Error starting audio capture:", err);
     }
@@ -223,6 +224,9 @@ function Home() {
   const acceptCall = useCallback(async (roomName, callerName) => {
     try {
       console.log(`📞 Joining room: ${roomName} as ${username}`);
+
+      // Make socket join the room for transcriptions
+      socket.emit("join-room", roomName);
 
       // Set these immediately so the video elements render
       setIsInCall(true);
@@ -373,6 +377,9 @@ function Home() {
 
     console.log("📞 Camera ready, now sending call event...");
     socket.emit("call-user", { toUserId, fromUserId, roomName });
+    // Join socket room for transcriptions
+    socket.emit("join-room", roomName);
+
     // Start capturing audio immediately for the caller, even before callee joins
     startAudioCapture(username, roomName);
     alert(`Calling ${selectedUser.username}... waiting for acceptance.`);
@@ -397,9 +404,19 @@ function Home() {
       }
     });
 
+    socket.on("new-transcription", (data) => {
+      console.log("📝 New Transcription:", data);
+      setCaptions((prev) => {
+        const newCaptions = [...prev, data];
+        // Keep only last 5 captions
+        return newCaptions.slice(-5);
+      });
+    });
+
     return () => {
       socket.off("incoming-call");
       socket.off("call-response");
+      socket.off("new-transcription");
     };
   }, [username, localTracks, acceptCall]);
 
@@ -422,6 +439,7 @@ function Home() {
     setIncomingCall(null);
     setCallStatus("idle");
     setFocusedVideo("remote");
+    setCaptions([]);
 
     // stop audio capture when call ends
     stopAudioCapture();
@@ -761,6 +779,31 @@ function Home() {
                       <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
                     </button>
                   </div>
+
+                  {/* Captions Overlay */}
+                  {captions.length > 0 && (
+                    <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 pointer-events-none z-20">
+                      <div className="flex flex-col gap-2 transition-all duration-300">
+                        {captions.map((cap, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex flex-col items-center animate-in fade-in slide-in-from-bottom-2 duration-500`}
+                            style={{ opacity: 1 - (captions.length - 1 - idx) * 0.2 }}
+                          >
+                            <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-xl max-w-lg text-center">
+                              <span className="text-[10px] font-black uppercase tracking-tighter text-emerald-400 block mb-0.5">{cap.username}</span>
+                              <p className="text-sm md:text-base font-medium text-white leading-relaxed">
+                                {cap.text}
+                              </p>
+                              {cap.language && cap.language !== "unknown" && (
+                                <span className="absolute -top-2 -right-2 bg-emerald-500 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-full uppercase">{cap.language}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

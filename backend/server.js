@@ -215,10 +215,18 @@ io.on("connection", (socket) => {
   });
 
   // 🔹 Call events
+  socket.on("join-room", (roomName) => {
+    socket.join(roomName);
+    console.log(`👤 Socket ${socket.id} joined room: ${roomName}`);
+  });
+
   socket.on("call-user", ({ toUserId, fromUserId, roomName }) => {
     const callee = onlineUsers[toUserId];
     const caller = onlineUsers[fromUserId];
     if (callee && caller) {
+      // Force caller to join the room
+      socket.join(roomName);
+
       // Create a registerNumber for this call if not exists
       (async () => {
         try {
@@ -248,6 +256,9 @@ io.on("connection", (socket) => {
   socket.on("call-response", ({ toUserId, accepted, roomName }) => {
     const caller = onlineUsers[toUserId];
     if (caller) {
+      if (accepted) {
+        socket.join(roomName); // Callee joins the room
+      }
       io.to(caller.socketId).emit("call-response", { accepted, roomName });
       console.log(`📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for ${roomName}`);
     }
@@ -277,9 +288,9 @@ io.on("connection", (socket) => {
         console.warn("⚠️ Unable to reconstruct audio buffer; skipping.");
         return;
       }
-      console.log(`🔊 Received audio chunk ${buffer.length} bytes, mimetype: ${mimetype || "unknown"}`);
+      console.log(`🔊 Received audio chunk ${buffer.length} bytes from ${username}, room: ${roomName}`);
       const safeExt = mimetype && mimetype.includes("ogg") ? "ogg" : "webm";
-      const tempFilePath = `temp_${Date.now()}.${safeExt}`;
+      const tempFilePath = `temp_${Date.now()}_${username}.${safeExt}`;
       fs.writeFileSync(tempFilePath, buffer);
 
       const dgMime = (mimetype || `audio/${safeExt}`).split(";")[0];
@@ -296,10 +307,10 @@ io.on("connection", (socket) => {
               punctuate: true,
               mimetype: dgMime,
               alternate_languages: [
-                "en", "hi", "bn", "ta", "te", "ml", "mr", "gu", "kn", "pa", "ur",
+                "en", "hi", "gu", "bn", "ta", "te", "ml", "mr", "kn", "pa", "ur",
               ],
               keywords: [
-                "bharat", "bhargav", "mumbai", "delhi", "bengaluru", "hyderabad", "chennai", "kolkata", "ahmedabad", "pune",
+                "bharat", "bhargav", "mumbai", "gujarat", "namaste", "kem cho",
               ],
             }
           );
@@ -316,13 +327,13 @@ io.on("connection", (socket) => {
       const whisperPromise = transcribeWithWhisper(buffer, dgMime);
       const [dgResult, whisperResult] = await Promise.allSettled([deepgramPromise, whisperPromise]);
 
-      fs.unlinkSync(tempFilePath);
+      if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
       const dg = dgResult.status === "fulfilled" ? dgResult.value : null;
       const wh = whisperResult.status === "fulfilled" ? whisperResult.value : null;
 
       // Choose the best available transcript
-      const finalText = (dg?.text && dg.text.trim()) ? dg.text : ((wh?.text && wh.text.trim()) ? wh.text : "");
+      let finalText = (dg?.text && dg.text.trim()) ? dg.text : ((wh?.text && wh.text.trim()) ? wh.text : "");
       let finalLang = (dg?.text && dg.text.trim() && dg?.lang && dg.lang !== "unknown")
         ? dg.lang
         : (wh?.language || dg?.lang || "unknown");
@@ -350,6 +361,14 @@ io.on("connection", (socket) => {
         });
         await speechDoc.save();
         console.log(`💾 Saved (${engineUsed}): ${username} (${finalLang || "unknown"}) [${roomToRegister[roomName] || "no-reg"}] -> ${finalText}`);
+
+        // 🚀 Broadcast to room for real-time captions
+        io.to(roomName).emit("new-transcription", {
+          username,
+          text: finalText,
+          language: finalLang,
+          timestamp: new Date()
+        });
       } else {
         console.log("⚠️ No speech detected after both engines, skipping save.");
       }

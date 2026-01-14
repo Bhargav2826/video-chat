@@ -56,9 +56,9 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
     const language = result?.results?.channels?.[0]?.detected_language || "en";
 
     const speechDoc = new SpeechModel({
-      userName: username,
+      username: username,
       language,
-      transcript,
+      transcription: transcript,
     });
 
     await speechDoc.save();
