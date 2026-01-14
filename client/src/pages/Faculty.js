@@ -18,16 +18,13 @@ function Faculty() {
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [incomingCall, setIncomingCall] = useState(null);
-    const [room, setRoom] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
     const [callStatus, setCallStatus] = useState("idle");
     const [localTracks, setLocalTracks] = useState(null);
-    const [focusedVideo, setFocusedVideo] = useState("remote");
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [usersError, setUsersError] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
-    const [showSidebar, setShowSidebar] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [captions, setCaptions] = useState([]);
@@ -254,7 +251,7 @@ function Faculty() {
                     <div className="bg-white/20 p-2 rounded-lg">
                         <i className="bi bi-person-badge-fill text-white text-xl"></i>
                     </div>
-                    <span className="text-xl font-bold tracking-tight text-white uppercase italic">Cocoon Faculty Portal</span>
+                    <span className="text-xl font-bold tracking-tight text-white  italic">Cocoon Faculty Portal</span>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-blue-900/50 px-4 py-1.5 rounded-full border border-blue-400/30">

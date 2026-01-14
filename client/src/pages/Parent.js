@@ -18,16 +18,13 @@ function Parent() {
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [incomingCall, setIncomingCall] = useState(null);
-    const [room, setRoom] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
     const [callStatus, setCallStatus] = useState("idle");
     const [localTracks, setLocalTracks] = useState(null);
-    const [focusedVideo, setFocusedVideo] = useState("remote");
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [usersError, setUsersError] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
-    const [showSidebar, setShowSidebar] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [captions, setCaptions] = useState([]);
