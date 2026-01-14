@@ -1,9 +1,17 @@
 import express from "express";
-import User from "../models/User.js";
+import Student from "../models/Student.js";
+import Faculty from "../models/Faculty.js";
+import Parent from "../models/Parent.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const router = express.Router();
+
+const getModelByRole = (role) => {
+  if (role === "faculty") return Faculty;
+  if (role === "parent") return Parent;
+  return Student;
+};
 
 // --------------------
 // Register new user
@@ -15,15 +23,25 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "All fields are required" });
     }
 
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ error: "Email already registered" });
+    // Check if email exists in ANY collection
+    const checkEmail = async (email) => {
+      const s = await Student.findOne({ email });
+      const f = await Faculty.findOne({ email });
+      const p = await Parent.findOne({ email });
+      return s || f || p;
+    };
+
+    const existing = await checkEmail(email);
+    if (existing) return res.status(400).json({ error: "Email already registered in the system" });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = new User({ username, email, password: hashedPassword, role: role || "student" });
+    const Model = getModelByRole(role);
+    const newUser = new Model({ username, email, password: hashedPassword, role: role || "student" });
     const user = await newUser.save();
-    res.status(201).json({ message: "User registered", user });
+
+    res.status(201).json({ message: `${role || "student"} registered successfully`, user });
   } catch (err) {
     console.error("❌ Registration error:", err);
     res.status(500).json({ error: err.message || "Server error" });
@@ -36,16 +54,20 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+
+    // Search across all collections
+    let user = await Student.findOne({ email });
+    if (!user) user = await Faculty.findOne({ email });
+    if (!user) user = await Parent.findOne({ email });
+
     if (!user) return res.status(400).json({ error: "User not found" });
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ error: "Wrong password" });
 
-    // Validate JWT_SECRET exists
     if (!process.env.JWT_SECRET) {
-      console.error("❌ JWT_SECRET is not defined in environment variables!");
-      return res.status(500).json({ error: "Server configuration error: JWT_SECRET missing" });
+      console.error("❌ JWT_SECRET is not defined!");
+      return res.status(500).json({ error: "Server configuration error" });
     }
 
     const token = jwt.sign(
@@ -62,12 +84,16 @@ router.post("/login", async (req, res) => {
 });
 
 // --------------------
-// Get all users
+// Get all users (aggregated)
 // --------------------
 router.get("/all-users", async (req, res) => {
   try {
-    const users = await User.find({}, "username email");
-    res.json(users);
+    const students = await Student.find({}, "username email role");
+    const faculty = await Faculty.find({}, "username email role");
+    const parents = await Parent.find({}, "username email role");
+
+    const allUsers = [...students, ...faculty, ...parents];
+    res.json(allUsers);
   } catch (err) {
     console.error("❌ Fetch users error:", err);
     res.status(500).json("Server error");

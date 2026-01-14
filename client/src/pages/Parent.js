@@ -206,6 +206,45 @@ function Parent() {
         };
     }, [acceptCall]);
 
+    const toggleMute = () => {
+        if (localTracks) {
+            localTracks.forEach((track) => {
+                if (track.kind === "audio") {
+                    track.mediaStreamTrack.enabled = !track.mediaStreamTrack.enabled;
+                }
+            });
+            setIsMuted((prev) => !prev);
+        }
+    };
+
+    const toggleVideo = () => {
+        if (localTracks) {
+            localTracks.forEach((track) => {
+                if (track.kind === "video") {
+                    track.mediaStreamTrack.enabled = !track.mediaStreamTrack.enabled;
+                }
+            });
+            setIsVideoOff((prev) => !prev);
+        }
+    };
+
+    const endCall = () => {
+        stopAudioCapture();
+        if (roomRef.current) {
+            roomRef.current.disconnect();
+            roomRef.current = null;
+        }
+        setRoom(null);
+        setIsInCall(false);
+        setIsPreviewing(false);
+        setCallStatus("idle");
+        setCaptions([]);
+        if (localTracks) {
+            localTracks.forEach(t => t.stop());
+            setLocalTracks(null);
+        }
+    };
+
     const handleLogout = () => { localStorage.clear(); navigate("/login"); };
 
     return (
@@ -243,7 +282,18 @@ function Parent() {
                         </div>
                     </div>
                     <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1">
-                        {users.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase())).map(user => (
+                        {isLoadingUsers && (
+                            <div className="flex flex-col items-center justify-center p-8 space-y-3">
+                                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Bridging connections...</span>
+                            </div>
+                        )}
+                        {usersError && (
+                            <div className="m-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                                <p className="text-xs text-red-500 text-center font-bold tracking-tight">{usersError}</p>
+                            </div>
+                        )}
+                        {!isLoadingUsers && users.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase())).map(user => (
                             <button
                                 key={user._id}
                                 onClick={() => setSelectedUser(user)}
@@ -305,8 +355,24 @@ function Parent() {
                                         </div>
 
                                         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 z-30 opacity-0 group-hover/call:opacity-100 transition-all scale-90 group-hover/call:scale-100">
-                                            <button className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-2xl transition-all hover:rotate-90 active:scale-90" onClick={() => window.location.reload()}>
+                                            <button
+                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${isMuted ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:text-blue-500"}`}
+                                                onClick={toggleMute}
+                                                title={isMuted ? "Unmute" : "Mute"}
+                                            >
+                                                <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} text-2xl`}></i>
+                                            </button>
+
+                                            <button className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-2xl transition-all hover:rotate-90 active:scale-90" onClick={endCall}>
                                                 <i className="bi bi-telephone-x-fill text-3xl"></i>
+                                            </button>
+
+                                            <button
+                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${isVideoOff ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:text-blue-500"}`}
+                                                onClick={toggleVideo}
+                                                title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+                                            >
+                                                <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-2xl`}></i>
                                             </button>
                                         </div>
 
