@@ -2,13 +2,13 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:8000",
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.12.2",
-    "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "classnames": "^2.5.1",
     "livekit-client": "^2.15.13",
@@ -23,6 +23,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build --dest ./temp",
     "start": "react-scripts start",
+    "dev": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -46,8 +47,11 @@
     ]
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.23",
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^7.0.0",
-    "gh-pages": "^6.3.0"
+    "gh-pages": "^6.3.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
   }
 }

@@ -1,10 +1,12 @@
-// Home.js
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { Room, RoomEvent, createLocalTracks } from "livekit-client";
-import "bootstrap/dist/css/bootstrap.min.css";
+// We will use standard SVG icons or an icon library if available, 
+// for now keeping bootstrap-icons as they can be used with Tailwind too, 
+// or I can replace them with Heroicons-like styles if needed.
+// But user only asked to convert framework, so keeping the icon font is fine for now.
 import "bootstrap-icons/font/bootstrap-icons.css";
 
 const SOCKET_URL = "/";
@@ -487,131 +489,206 @@ function Home() {
 
   // -------------------- JSX --------------------
   return (
-    <div className="vh-100 d-flex flex-column bg-dark text-light">
+    <div className="h-screen flex flex-col bg-gray-950 text-white overflow-hidden">
       {/* Navbar */}
-      <nav className="navbar navbar-dark bg-success px-3">
-        <span className="navbar-brand d-flex align-items-center gap-2">
-          <span className="fw-semibold">Chats</span>
-        </span>
-        <div className="d-flex align-items-center gap-2">
-          <button className="btn btn-outline-secondary btn-sm d-lg-none" onClick={() => setShowSidebar(true)}>
-            <i className="bi bi-people-fill me-1"></i>Users
+      <nav className="flex items-center justify-between px-6 py-4 bg-emerald-700 shadow-md z-10">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/20 p-2 rounded-lg">
+            <i className="bi bi-chat-dots-fill text-white text-xl"></i>
+          </div>
+          <span className="text-xl font-bold tracking-tight">VideoConnect</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            className="lg:hidden bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-all"
+            onClick={() => setShowSidebar(true)}
+          >
+            <i className="bi bi-people-fill"></i>
+            <span>Users</span>
           </button>
-          <span className="badge bg-light text-dark">{username}</span>
-          <button className="btn btn-outline-danger btn-sm" onClick={handleLogout}>
-            <i className="bi bi-box-arrow-right me-1"></i>Logout
+          <div className="hidden sm:flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-full border border-white/10">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+            <span className="text-sm font-medium">{username}</span>
+          </div>
+          <button
+            className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+            onClick={handleLogout}
+          >
+            <i className="bi bi-box-arrow-right"></i>
+            <span>Logout</span>
           </button>
         </div>
       </nav>
 
-      <div className="flex-grow-1 d-flex overflow-hidden">
+      <div className="flex-grow flex overflow-hidden">
         {/* Sidebar */}
-        <div className="bg-dark border-end border-secondary-subtle p-0 d-none d-lg-flex flex-column" style={{ width: "320px" }}>
-          <div className="p-3 border-bottom border-secondary-subtle">
-            <div className="input-group input-group-sm">
-              <span className="input-group-text bg-secondary-subtle text-dark border-0 rounded-start-pill">
+        <aside className="bg-gray-900 border-r border-white/5 w-80 hidden lg:flex flex-col shadow-2xl">
+          <div className="p-4 border-b border-white/5 space-y-4">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Messages</h3>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
                 <i className="bi bi-search"></i>
               </span>
-              <input className="form-control bg-secondary-subtle text-dark border-0 rounded-end-pill" placeholder="Search or start new chat" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input
+                className="block w-full pl-10 pr-3 py-2 bg-gray-800 border border-transparent rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:bg-gray-700 transition-all font-medium"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
-          {isLoadingUsers && (
-            <div className="text-secondary small d-flex align-items-center gap-2">
-              <div className="spinner-border spinner-border-sm text-secondary" role="status"></div>
-              Loading users...
-            </div>
-          )}
-          {!isLoadingUsers && usersError && (
-            <div className="alert alert-danger py-2 small">{usersError}</div>
-          )}
-          {!isLoadingUsers && !usersError && (
-            <ul className="list-group list-group-flush small" style={{ maxHeight: "calc(100vh - 140px)", overflowY: "auto" }}>
-              {users
-                .filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((user) => (
-                  <li
-                    key={user._id}
-                    className={`list-group-item bg-dark text-light border-secondary-subtle list-group-item-action ${selectedUser === user ? "active bg-secondary text-white" : ""}`}
-                    style={{ cursor: "pointer", padding: "12px 16px" }}
-                    onClick={() => setSelectedUser(selectedUser === user ? null : user)}
-                  >
-                    <div className="d-flex align-items-center gap-2">
-                      <div className="rounded-circle bg-success d-flex align-items-center justify-content-center" style={{ width: 36, height: 36 }}>
-                        <span className="text-white fw-semibold">{String(user.username || "?").charAt(0).toUpperCase()}</span>
-                      </div>
-                      <div className="flex-grow-1">
-                        <div className="d-flex justify-content-between">
-                          <strong className="text-light">{user.username}</strong>
-                          <small className="text-secondary">online</small>
+
+          <div className="flex-grow overflow-y-auto overflow-x-hidden custom-scrollbar">
+            {isLoadingUsers && (
+              <div className="flex flex-col items-center justify-center p-8 space-y-3">
+                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs text-gray-500 font-medium">Fetching users...</span>
+              </div>
+            )}
+            {!isLoadingUsers && usersError && (
+              <div className="m-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <p className="text-xs text-red-400 text-center font-medium">{usersError}</p>
+              </div>
+            )}
+            {!isLoadingUsers && !usersError && (
+              <div className="py-2">
+                {users
+                  .filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((user) => (
+                    <button
+                      key={user._id}
+                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 group text-left ${selectedUser === user ? "bg-emerald-600/10 border-r-4 border-emerald-500" : "hover:bg-white/5"}`}
+                      onClick={() => setSelectedUser(selectedUser === user ? null : user)}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white ring-2 ring-gray-950 group-hover:scale-105 transition-transform">
+                          <span className="font-bold text-lg">{String(user.username || "?").charAt(0).toUpperCase()}</span>
                         </div>
-                        <div className="text-secondary small">Tap to start call</div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              {users.filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                <li className="list-group-item bg-transparent text-secondary border-secondary">No users found</li>
-              )}
-            </ul>
-          )}
-        </div>
+                      <div className="flex-grow min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-sm font-semibold text-gray-100 truncate">{user.username}</span>
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">ONLINE</span>
+                        </div>
+                        <p className="text-xs text-gray-500 truncate group-hover:text-gray-400 transition-colors">Start a video conversation</p>
+                      </div>
+                    </button>
+                  ))}
+                {users.filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-gray-500 font-medium italic">No users available</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
 
         {/* Main Area */}
-        <div className="flex-grow-1 d-flex justify-content-center align-items-center position-relative p-3">
+        <main className="flex-grow flex flex-col relative bg-gray-950">
           {!selectedUser && (
-            <div className="text-center">
-              <h1 className="mb-2 fw-bold text-info">Welcome, {username} 👋</h1>
-              <p className="text-secondary mb-4">Select a user from the left to start a video call</p>
+            <div className="flex-grow flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
+              <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 ring-1 ring-emerald-500/20">
+                <i className="bi bi-camera-video text-4xl text-emerald-500"></i>
+              </div>
+              <h1 className="text-4xl font-extrabold text-white mb-3">Welcome, <span className="text-emerald-500">{username}</span> 👋</h1>
+              <p className="text-gray-400 max-w-md text-lg leading-relaxed">Select a teammate from the sidebar to start a high-quality video call instantly.</p>
             </div>
           )}
 
           {selectedUser && (
-            <div className="card bg-dark border-0 w-100 h-100 text-light">
-              <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom border-secondary-subtle" style={{ backgroundColor: "#128C7E" }}>
-                <div className="d-flex align-items-center gap-2">
-                  <div className="rounded-circle bg-light d-flex align-items-center justify-content-center" style={{ width: 36, height: 36 }}>
-                    <span className="text-dark fw-semibold">{String(selectedUser.username || "?").charAt(0).toUpperCase()}</span>
+            <div className="flex-grow flex flex-col h-full">
+              {/* Call Header */}
+              <header className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-white/5 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                      <span className="font-bold text-xl">{String(selectedUser.username || "?").charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-4 border-gray-900"></div>
                   </div>
                   <div>
-                    <div className="fw-semibold">{selectedUser.username}</div>
-                    <small className="text-white-50">{callStatus === "connected" ? "In call" : callStatus}</small>
+                    <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${callStatus === "connected" ? "bg-green-500 animate-pulse" : "bg-gray-500"}`}></span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">{callStatus === "connected" ? "Securely Connected" : callStatus}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="d-flex align-items-center gap-2">
-                  <button className="btn btn-outline-light btn-sm" onClick={initiateCall} disabled={!!room || isInCall || isPreviewing}>
-                    <i className="bi bi-camera-video"></i>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="p-3 rounded-xl bg-gray-800 hover:bg-emerald-600 text-white transition-all disabled:opacity-30 disabled:hover:bg-gray-800"
+                    onClick={initiateCall}
+                    disabled={!!room || isInCall || isPreviewing}
+                    title="Start Video Call"
+                  >
+                    <i className="bi bi-camera-video-fill text-xl"></i>
                   </button>
-                  <button className="btn btn-outline-light btn-sm" onClick={endCall} disabled={!isInCall && !isPreviewing}>
-                    <i className="bi bi-telephone-x"></i>
+                  <button
+                    className="p-3 rounded-xl bg-gray-800 hover:bg-red-600 text-white transition-all disabled:opacity-30 disabled:hover:bg-gray-800"
+                    onClick={endCall}
+                    disabled={!isInCall && !isPreviewing}
+                    title="End Call"
+                  >
+                    <i className="bi bi-telephone-x-fill text-xl"></i>
                   </button>
                 </div>
-              </div>
+              </header>
 
               {/* Start Call CTA */}
               {!room && !incomingCall && !isInCall && !isPreviewing && (
-                <div className="py-3">
-                  <button className="btn btn-success px-4 py-2 fw-semibold" onClick={initiateCall}>
-                    <i className="bi bi-camera-video me-2"></i>
-                    Start Video Call
-                  </button>
+                <div className="flex-grow flex items-center justify-center p-6 bg-gray-950/50 backdrop-blur-sm">
+                  <div className="text-center p-8 bg-gray-900 rounded-3xl border border-white/5 shadow-2xl max-w-sm">
+                    <div className="w-20 h-20 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <i className="bi bi-camera-video-fill text-3xl text-emerald-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Ready to connect?</h3>
+                    <p className="text-gray-400 text-sm mb-6">Start a secure high-definition video session with {selectedUser.username}.</p>
+                    <button
+                      className="group relative w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-600/20"
+                      onClick={initiateCall}
+                    >
+                      <i className="bi bi-camera-video-fill"></i>
+                      <span>Start Video Call</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Incoming call modal-ish overlay */}
               {incomingCall && (
-                <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style={{ background: "rgba(0,0,0,0.6)" }}>
-                  <div className="card bg-black border border-secondary p-3" style={{ maxWidth: 420 }}>
-                    <div className="d-flex align-items-center mb-2">
-                      <i className="bi bi-telephone-inbound-fill text-info me-2"></i>
-                      <strong>Incoming call</strong>
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 transition-all animate-in fade-in duration-300">
+                  <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-md"></div>
+                  <div className="relative w-full max-w-sm bg-gray-900 rounded-[2.5rem] border border-emerald-500/20 shadow-[0_0_50px_rgba(16,185,129,0.1)] p-8 text-center overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-[shimmer_2s_infinite]"></div>
+                    <div className="relative mb-6">
+                      <div className="w-24 h-24 mx-auto bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-emerald-500/20 animate-bounce">
+                        <span className="text-3xl font-bold text-white uppercase">{String(incomingCall.name || "?").charAt(0)}</span>
+                      </div>
+                      <div className="absolute -bottom-2 right-1/2 translate-x-1/2 bg-emerald-500 px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-tighter shadow-lg">Calling...</div>
                     </div>
-                    <div className="mb-3 text-secondary">From: <span className="text-light">{incomingCall.name}</span></div>
-                    <div className="d-flex gap-2">
-                      <button className="btn btn-success flex-fill" onClick={handleAcceptCall}>
-                        <i className="bi bi-check-circle me-1"></i>Accept
+                    <h3 className="text-2xl font-black text-white mb-1">{incomingCall.name}</h3>
+                    <p className="text-gray-400 text-sm font-medium mb-8">is inviting you to a video call</p>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        className="flex flex-col items-center gap-2 p-4 rounded-3xl bg-emerald-500 hover:bg-emerald-400 text-white transition-all shadow-lg shadow-emerald-500/25 group"
+                        onClick={handleAcceptCall}
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <i className="bi bi-telephone-fill text-xl"></i>
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Accept</span>
                       </button>
-                      <button className="btn btn-danger flex-fill" onClick={handleDeclineCall}>
-                        <i className="bi bi-x-circle me-1"></i>Decline
+                      <button
+                        className="flex flex-col items-center gap-2 p-4 rounded-3xl bg-red-500 hover:bg-red-400 text-white transition-all shadow-lg shadow-red-500/25 group"
+                        onClick={handleDeclineCall}
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <i className="bi bi-x-lg text-xl"></i>
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Decline</span>
                       </button>
                     </div>
                   </div>
@@ -620,119 +697,134 @@ function Home() {
 
               {/* Video Container */}
               {(isPreviewing || isInCall) && (
-                <div
-                  className="w-100 h-100 d-flex gap-2 align-items-stretch justify-content-center position-relative"
-                  style={{ backgroundColor: "#0b141a", overflow: "hidden", padding: 12, backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)", backgroundSize: "24px 24px" }}
-                >
+                <div className="flex-grow relative flex flex-col md:flex-row gap-4 p-4 bg-black overflow-hidden group/container">
                   {/* Remote Video */}
                   <div
                     onClick={onRemoteClick}
-                    className="d-flex align-items-center justify-content-center position-relative rounded-3 border border-secondary-subtle"
-                    style={{ transition: "all 230ms ease", cursor: "pointer", flex: focusedVideo === "remote" ? 2 : 1, overflow: "hidden" }}
+                    className={`relative rounded-3xl border border-white/5 bg-gray-900 transition-all duration-500 ease-out cursor-pointer overflow-hidden shadow-2xl flex-grow
+                      ${focusedVideo === "remote" ? "md:flex-[3]" : "md:flex-[1] opacity-60 hover:opacity-100 scale-95 hover:scale-100"}`}
                   >
                     <video
                       ref={remoteVideoRef}
                       autoPlay
                       playsInline
-                      className="w-100 h-100 rounded object-fit-cover"
+                      className="w-full h-full object-cover"
                     ></video>
-                    <div className="position-absolute top-0 start-0 p-2 bg-dark bg-opacity-50 text-white small rounded-end">
-                      {selectedUser.username}
+                    <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">{selectedUser.username}</span>
                     </div>
                   </div>
 
                   {/* Local Video */}
                   <div
                     onClick={onLocalClick}
-                    className="d-flex align-items-center justify-content-center position-relative rounded-3 border border-secondary-subtle"
-                    style={{ transition: "all 230ms ease", cursor: "pointer", flex: focusedVideo === "local" ? 2 : 1, overflow: "hidden" }}
+                    className={`relative rounded-3xl border border-white/5 bg-gray-900 transition-all duration-500 ease-out cursor-pointer overflow-hidden shadow-2xl flex-grow
+                      ${focusedVideo === "local" ? "md:flex-[3]" : "md:flex-[1] opacity-60 hover:opacity-100 scale-95 hover:scale-100"}`}
                   >
                     <video
                       ref={localVideoRef}
                       autoPlay
                       muted
                       playsInline
-                      className="w-100 h-100 rounded object-fit-cover"
+                      className="w-full h-full object-cover"
                     ></video>
-                    <div className="position-absolute top-0 start-0 p-2 bg-dark bg-opacity-50 text-white small rounded-end">
-                      You
+                    <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">You</span>
                     </div>
                   </div>
 
-                  {/* Controls */}
-                  <div className="position-absolute bottom-0 start-50 translate-middle-x mb-3 d-flex gap-2">
-                    <button className="btn btn-danger rounded-circle shadow d-flex align-items-center justify-content-center" style={{ width: 54, height: 54 }} onClick={endCall}>
-                      <i className="bi bi-telephone-x-fill fs-5"></i>
-                    </button>
-
+                  {/* Controls Overlay */}
+                  <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-4 bg-gray-900/60 backdrop-blur-xl rounded-[2.5rem] border border-white/10 shadow-2xl transition-all translate-y-2 opacity-0 group-hover/container:translate-y-0 group-hover/container:opacity-100 z-30">
                     <button
-                      className="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
-                      style={{ width: 54, height: 54 }}
+                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
                       onClick={toggleMute}
                       title={isMuted ? "Unmute" : "Mute"}
                     >
-                      <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} fs-5 text-dark`}></i>
+                      <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} text-xl`}></i>
                     </button>
 
                     <button
-                      className="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
-                      style={{ width: 54, height: 54 }}
+                      className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/20 hover:scale-110 active:scale-95 transition-all"
+                      onClick={endCall}
+                      title="End Call"
+                    >
+                      <i className="bi bi-telephone-x-fill text-2xl"></i>
+                    </button>
+
+                    <button
+                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
                       onClick={toggleVideo}
                       title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
                     >
-                      <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} fs-5 text-dark`}></i>
+                      <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
                     </button>
                   </div>
                 </div>
               )}
             </div>
           )}
-        </div>
+        </main>
       </div>
+
       {showSidebar && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-lg-none" style={{ background: "rgba(0,0,0,0.7)" }}>
-          <div className="bg-dark border-start border-secondary h-100 ms-auto p-3" style={{ width: 300 }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <h6 className="mb-0 text-secondary text-uppercase">Users</h6>
-              <button className="btn btn-outline-light btn-sm" onClick={() => setShowSidebar(false)}>
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => setShowSidebar(false)}></div>
+          <div className="absolute top-0 left-0 w-80 h-full bg-gray-900 border-r border-white/5 flex flex-col animate-in slide-in-from-left duration-300">
+            <div className="p-4 border-b border-white/5 flex items-center justify-between">
+              <h6 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Users</h6>
+              <button
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition-all"
+                onClick={() => setShowSidebar(false)}
+              >
                 <i className="bi bi-x-lg"></i>
               </button>
             </div>
-            <div className="input-group input-group-sm mb-3">
-              <span className="input-group-text bg-dark text-light border-secondary">
-                <i className="bi bi-search"></i>
-              </span>
-              <input className="form-control bg-dark text-light border-secondary" placeholder="Search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            </div>
-            {isLoadingUsers && (
-              <div className="text-secondary small d-flex align-items-center gap-2">
-                <div className="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                Loading users...
+
+            <div className="p-4">
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+                  <i className="bi bi-search"></i>
+                </span>
+                <input
+                  className="block w-full pl-10 pr-3 py-2 bg-gray-800 border-none rounded-xl text-sm text-white placeholder-gray-500 focus:ring-0"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-            )}
-            {!isLoadingUsers && usersError && (
-              <div className="alert alert-danger py-2 small">{usersError}</div>
-            )}
-            {!isLoadingUsers && !usersError && (
-              <ul className="list-group list-group-flush small" style={{ maxHeight: "calc(100vh - 150px)", overflowY: "auto" }}>
-                {users
-                  .filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((user) => (
-                    <li
-                      key={user._id}
-                      className={`list-group-item bg-transparent text-light border-secondary list-group-item-action ${selectedUser === user ? "active bg-primary text-white" : ""}`}
-                      style={{ cursor: "pointer" }}
-                      onClick={() => { setSelectedUser(selectedUser === user ? null : user); setShowSidebar(false); }}
-                    >
-                      <i className="bi bi-person-fill me-2"></i>
-                      {user.username}
-                    </li>
-                  ))}
-                {users.filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                  <li className="list-group-item bg-transparent text-secondary border-secondary">No users found</li>
-                )}
-              </ul>
-            )}
+            </div>
+
+            <div className="flex-grow overflow-y-auto">
+              {isLoadingUsers && (
+                <div className="p-8 text-center">
+                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <span className="text-xs text-gray-500">Syncing...</span>
+                </div>
+              )}
+              {!isLoadingUsers && usersError && (
+                <div className="px-4 py-2 text-xs text-red-400">{usersError}</div>
+              )}
+              {!isLoadingUsers && !usersError && (
+                <div className="space-y-1">
+                  {users
+                    .filter((u) => u.username.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((user) => (
+                      <button
+                        key={user._id}
+                        className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${selectedUser === user ? "bg-emerald-600/10 border-r-4 border-emerald-500" : "hover:bg-white/5"}`}
+                        onClick={() => { setSelectedUser(selectedUser === user ? null : user); setShowSidebar(false); }}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-500">
+                          <i className="bi bi-person-fill text-lg"></i>
+                        </div>
+                        <span className="text-sm font-medium text-gray-200">{user.username}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

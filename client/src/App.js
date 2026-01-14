@@ -4,8 +4,6 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import { CallProvider, useCall } from "./context/CallContext";
-import "bootstrap/dist/css/bootstrap.min.css";
-
 // -----------------------------
 // Video Call Page Component
 // -----------------------------
@@ -27,81 +25,89 @@ const VideoCallUI = () => {
   };
 
   return (
-    <div className="p-4 container text-center">
-      <h1 className="text-2xl fw-bold mb-3">🎥 LiveKit Video Call</h1>
+    <div className="p-8 max-w-2xl mx-auto text-center bg-gray-900 text-white rounded-3xl mt-10 shadow-2xl border border-white/10">
+      <h1 className="text-4xl font-black mb-8 bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">🎥 LiveKit Video Call</h1>
 
       {!inCall ? (
-        <>
-          <div className="mb-3">
+        <div className="space-y-8">
+          <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5 space-y-4">
+            <h3 className="text-left text-xs font-bold text-gray-500 uppercase tracking-widest pl-2">Session Identity</h3>
             <input
-              className="form-control mb-2"
+              className="w-full px-5 py-4 bg-gray-800 border-none rounded-2xl text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
               placeholder="Your User ID"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
             />
             <input
-              className="form-control mb-2"
+              className="w-full px-5 py-4 bg-gray-800 border-none rounded-2xl text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
               placeholder="Your Name"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
             />
             <button
               onClick={handleRegister}
-              className="btn btn-primary w-100"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
             >
-              Register
+              Secure Register
             </button>
           </div>
 
-          <hr />
+          <div className="relative py-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+            <div className="relative flex justify-center"><span className="bg-gray-900 px-4 text-xs font-bold text-gray-600 uppercase tracking-widest">Connect</span></div>
+          </div>
 
-          <div className="mb-3">
+          <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5 space-y-4">
+            <h3 className="text-left text-xs font-bold text-gray-500 uppercase tracking-widest pl-2">Remote Peer</h3>
             <input
-              className="form-control mb-2"
+              className="w-full px-5 py-4 bg-gray-800 border-none rounded-2xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
               placeholder="Target User ID"
               value={targetId}
               onChange={(e) => setTargetId(e.target.value)}
             />
             <input
-              className="form-control mb-2"
+              className="w-full px-5 py-4 bg-gray-800 border-none rounded-2xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 transition-all font-medium"
               placeholder="Room Name"
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
             />
             <button
               onClick={handleCall}
-              className="btn btn-success w-100"
+              className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
-              Call User
+              Initialize Handshake
             </button>
           </div>
 
           {incomingCall && (
-            <div className="alert alert-info mt-4">
-              <p>
-                📞 Incoming call from <b>{incomingCall.fromUserName}</b>
+            <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] animate-pulse">
+              <p className="text-lg font-bold text-emerald-400 mb-4 tracking-tight">
+                📞 Signaling from <span className="text-emerald-100 uppercase">{incomingCall.fromUserName}</span>
               </p>
-              <button
-                onClick={() =>
-                  respondToCall(true, incomingCall.roomName, incomingCall.fromUserId)
-                }
-                className="btn btn-success mx-2"
-              >
-                Accept
-              </button>
-              <button
-                onClick={() =>
-                  respondToCall(false, incomingCall.roomName, incomingCall.fromUserId)
-                }
-                className="btn btn-danger mx-2"
-              >
-                Reject
-              </button>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => respondToCall(true, incomingCall.roomName, incomingCall.fromUserId)}
+                  className="flex-grow py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-lg"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => respondToCall(false, incomingCall.roomName, incomingCall.fromUserId)}
+                  className="flex-grow py-3 bg-red-500 text-white font-bold rounded-xl shadow-lg"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <p className="text-success fs-5 fw-bold mt-4">✅ In Call</p>
+        <div className="py-20 animate-in fade-in zoom-in duration-500">
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-2xl font-black text-emerald-400 tracking-tighter">ESTABLISHED ENCRYPTED CHANNEL</p>
+        </div>
       )}
     </div>
   );
