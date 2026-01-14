@@ -18,6 +18,7 @@ function Faculty() {
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [incomingCall, setIncomingCall] = useState(null);
+    const [room, setRoom] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
     const [callStatus, setCallStatus] = useState("idle");
