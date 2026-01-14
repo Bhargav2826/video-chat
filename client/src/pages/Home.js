@@ -222,12 +222,12 @@ function Home() {
     try {
       console.log(`📞 Joining room: ${roomName} as ${username}`);
 
-      // CRITICAL: Set these states FIRST so video elements render
-      setIsPreviewing(true);
+      // Set these immediately so the video elements render
       setIsInCall(true);
+      setIsPreviewing(true);
       setCallStatus("connected");
 
-      // Wait for React to render the video elements
+      // Give React a moment to render the video elements so refs are not NULL
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Get LiveKit token
@@ -336,6 +336,9 @@ function Home() {
     } catch (error) {
       console.error("❌ Call failed:", error);
       alert(`Failed to join call: ${error.message}`);
+      setIsInCall(false);
+      setIsPreviewing(false);
+      setCallStatus("idle");
     }
   }, [localTracks, username]);
 
