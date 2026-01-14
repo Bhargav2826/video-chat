@@ -509,12 +509,12 @@ function Home() {
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white overflow-hidden">
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-4 bg-emerald-700 shadow-md z-10">
+      <nav className="flex items-center justify-between px-6 py-4 bg-blue-600 shadow-md z-10">
         <div className="flex items-center gap-3">
           <div className="bg-white/20 p-2 rounded-lg">
             <i className="bi bi-chat-dots-fill text-white text-xl"></i>
           </div>
-          <span className="text-xl font-bold tracking-tight">VideoConnect</span>
+          <span className="text-xl font-bold tracking-tight">Cocoon Student Dashboard</span>
         </div>
         <div className="flex items-center gap-4">
           <button
@@ -559,7 +559,7 @@ function Home() {
           <div className="flex-grow overflow-y-auto overflow-x-hidden custom-scrollbar">
             {isLoadingUsers && (
               <div className="flex flex-col items-center justify-center p-8 space-y-3">
-                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 <span className="text-xs text-gray-500 font-medium">Fetching users...</span>
               </div>
             )}
@@ -575,14 +575,14 @@ function Home() {
                   .map((user) => (
                     <button
                       key={user._id}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 group text-left ${selectedUser === user ? "bg-emerald-600/10 border-r-4 border-emerald-500" : "hover:bg-white/5"}`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 group text-left ${selectedUser === user ? "bg-blue-600/10 border-r-4 border-blue-500" : "hover:bg-white/5"}`}
                       onClick={() => setSelectedUser(selectedUser === user ? null : user)}
                     >
                       <div className="relative flex-shrink-0">
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white ring-2 ring-gray-950 group-hover:scale-105 transition-transform">
+                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white ring-2 ring-gray-950 group-hover:scale-105 transition-transform">
                           <span className="font-bold text-lg">{String(user.username || "?").charAt(0).toUpperCase()}</span>
                         </div>
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
                       </div>
                       <div className="flex-grow min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
@@ -607,10 +607,10 @@ function Home() {
         <main className="flex-grow flex flex-col relative bg-gray-950">
           {!selectedUser && (
             <div className="flex-grow flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
-              <div className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 ring-1 ring-emerald-500/20">
-                <i className="bi bi-camera-video text-4xl text-emerald-500"></i>
+              <div className="w-24 h-24 bg-blue-500/10 rounded-full flex items-center justify-center mb-6 ring-1 ring-blue-500/20">
+                <i className="bi bi-camera-video text-4xl text-blue-500"></i>
               </div>
-              <h1 className="text-4xl font-extrabold text-white mb-3">Welcome, <span className="text-emerald-500">{username}</span> 👋</h1>
+              <h1 className="text-4xl font-extrabold text-white mb-3">Welcome, <span className="text-blue-500">{username}</span> 👋</h1>
               <p className="text-gray-400 max-w-md text-lg leading-relaxed">Select a teammate from the sidebar to start a high-quality video call instantly.</p>
             </div>
           )}
@@ -621,22 +621,22 @@ function Home() {
               <header className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-white/5 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
                       <span className="font-bold text-xl">{String(selectedUser.username || "?").charAt(0).toUpperCase()}</span>
                     </div>
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-4 border-gray-900"></div>
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-sky-500 rounded-full border-4 border-gray-900"></div>
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white leading-tight">{selectedUser.username}</h2>
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${callStatus === "connected" ? "bg-green-500 animate-pulse" : "bg-gray-500"}`}></span>
+                      <span className={`w-2 h-2 rounded-full ${callStatus === "connected" ? "bg-sky-500 animate-pulse" : "bg-gray-500"}`}></span>
                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">{callStatus === "connected" ? "Securely Connected" : callStatus}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    className="p-3 rounded-xl bg-gray-800 hover:bg-emerald-600 text-white transition-all disabled:opacity-30 disabled:hover:bg-gray-800"
+                    className="p-3 rounded-xl bg-gray-800 hover:bg-blue-600 text-white transition-all disabled:opacity-30 disabled:hover:bg-gray-800"
                     onClick={initiateCall}
                     disabled={!!room || isInCall || isPreviewing}
                     title="Start Video Call"
@@ -658,13 +658,13 @@ function Home() {
               {!room && !incomingCall && !isInCall && !isPreviewing && (
                 <div className="flex-grow flex items-center justify-center p-6 bg-gray-950/50 backdrop-blur-sm">
                   <div className="text-center p-8 bg-gray-900 rounded-3xl border border-white/5 shadow-2xl max-w-sm">
-                    <div className="w-20 h-20 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <i className="bi bi-camera-video-fill text-3xl text-emerald-500"></i>
+                    <div className="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <i className="bi bi-camera-video-fill text-3xl text-blue-500"></i>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2">Ready to connect?</h3>
                     <p className="text-gray-400 text-sm mb-6">Start a secure high-definition video session with {selectedUser.username}.</p>
                     <button
-                      className="group relative w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-600/20"
+                      className="group relative w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-600/20"
                       onClick={initiateCall}
                     >
                       <i className="bi bi-camera-video-fill"></i>
@@ -678,20 +678,20 @@ function Home() {
               {incomingCall && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center p-6 transition-all animate-in fade-in duration-300">
                   <div className="absolute inset-0 bg-gray-950/80 backdrop-blur-md"></div>
-                  <div className="relative w-full max-w-sm bg-gray-900 rounded-[2.5rem] border border-emerald-500/20 shadow-[0_0_50px_rgba(16,185,129,0.1)] p-8 text-center overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-[shimmer_2s_infinite]"></div>
+                  <div className="relative w-full max-w-sm bg-gray-900 rounded-[2.5rem] border border-blue-500/20 shadow-[0_0_50px_rgba(59,130,246,0.1)] p-8 text-center overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-blue-500 animate-[shimmer_2s_infinite]"></div>
                     <div className="relative mb-6">
-                      <div className="w-24 h-24 mx-auto bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-emerald-500/20 animate-bounce">
+                      <div className="w-24 h-24 mx-auto bg-gradient-to-tr from-blue-500 to-indigo-400 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-blue-500/20 animate-bounce">
                         <span className="text-3xl font-bold text-white uppercase">{String(incomingCall.name || "?").charAt(0)}</span>
                       </div>
-                      <div className="absolute -bottom-2 right-1/2 translate-x-1/2 bg-emerald-500 px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-tighter shadow-lg">Calling...</div>
+                      <div className="absolute -bottom-2 right-1/2 translate-x-1/2 bg-blue-500 px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-tighter shadow-lg">Calling...</div>
                     </div>
                     <h3 className="text-2xl font-black text-white mb-1">{incomingCall.name}</h3>
                     <p className="text-gray-400 text-sm font-medium mb-8">is inviting you to a video call</p>
 
                     <div className="grid grid-cols-2 gap-4">
                       <button
-                        className="flex flex-col items-center gap-2 p-4 rounded-3xl bg-emerald-500 hover:bg-emerald-400 text-white transition-all shadow-lg shadow-emerald-500/25 group"
+                        className="flex flex-col items-center gap-2 p-4 rounded-3xl bg-blue-500 hover:bg-blue-400 text-white transition-all shadow-lg shadow-blue-500/25 group"
                         onClick={handleAcceptCall}
                       >
                         <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -729,7 +729,7 @@ function Home() {
                       className="w-full h-full object-cover"
                     ></video>
                     <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
                       <span className="text-xs font-bold text-white uppercase tracking-wider">{selectedUser.username}</span>
                     </div>
                   </div>
@@ -748,7 +748,7 @@ function Home() {
                       className="w-full h-full object-cover"
                     ></video>
                     <div className="absolute bottom-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                       <span className="text-xs font-bold text-white uppercase tracking-wider">You</span>
                     </div>
                   </div>
@@ -791,12 +791,12 @@ function Home() {
                             style={{ opacity: 1 - (captions.length - 1 - idx) * 0.2 }}
                           >
                             <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-xl max-w-lg text-center">
-                              <span className="text-[10px] font-black uppercase tracking-tighter text-emerald-400 block mb-0.5">{cap.username}</span>
+                              <span className="text-[10px] font-black uppercase tracking-tighter text-blue-400 block mb-0.5">{cap.username}</span>
                               <p className="text-sm md:text-base font-medium text-white leading-relaxed">
                                 {cap.text}
                               </p>
                               {cap.language && cap.language !== "unknown" && (
-                                <span className="absolute -top-2 -right-2 bg-emerald-500 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-full uppercase">{cap.language}</span>
+                                <span className="absolute -top-2 -right-2 bg-blue-500 text-[8px] font-bold text-white px-1.5 py-0.5 rounded-full uppercase">{cap.language}</span>
                               )}
                             </div>
                           </div>
@@ -842,7 +842,7 @@ function Home() {
             <div className="flex-grow overflow-y-auto">
               {isLoadingUsers && (
                 <div className="p-8 text-center">
-                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                   <span className="text-xs text-gray-500">Syncing...</span>
                 </div>
               )}
@@ -856,10 +856,10 @@ function Home() {
                     .map((user) => (
                       <button
                         key={user._id}
-                        className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${selectedUser === user ? "bg-emerald-600/10 border-r-4 border-emerald-500" : "hover:bg-white/5"}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${selectedUser === user ? "bg-blue-600/10 border-r-4 border-blue-500" : "hover:bg-white/5"}`}
                         onClick={() => { setSelectedUser(selectedUser === user ? null : user); setShowSidebar(false); }}
                       >
-                        <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-emerald-500">
+                        <div className="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-blue-500">
                           <i className="bi bi-person-fill text-lg"></i>
                         </div>
                         <span className="text-sm font-medium text-gray-200">{user.username}</span>
