@@ -241,7 +241,12 @@ function Home() {
       livekitRoom.on(RoomEvent.TrackSubscribed, async (track, publication, participant) => {
         console.log(`📹 NEW TRACK from ${participant.identity}: ${track.kind}`);
 
-        if (track.kind === "video" && remoteVideoRef.current) {
+        if (track.kind === "video") {
+          if (!remoteVideoRef.current) {
+            console.error("❌ remoteVideoRef.current is NULL!");
+            return;
+          }
+
           // Attach the remote video track
           track.attach(remoteVideoRef.current);
           await tryPlay(remoteVideoRef.current);
@@ -282,11 +287,17 @@ function Home() {
 
       // Attach local video
       const videoTrack = tracks.find(t => t.kind === "video");
-      if (videoTrack && localVideoRef.current) {
-        videoTrack.attach(localVideoRef.current);
-        localVideoRef.current.muted = true; // Prevent echo
-        await tryPlay(localVideoRef.current);
-        console.log("✅ LOCAL VIDEO ATTACHED");
+      if (videoTrack) {
+        if (!localVideoRef.current) {
+          console.error("❌ localVideoRef.current is NULL!");
+        } else {
+          videoTrack.attach(localVideoRef.current);
+          localVideoRef.current.muted = true; // Prevent echo
+          await tryPlay(localVideoRef.current);
+          console.log("✅ LOCAL VIDEO ATTACHED");
+        }
+      } else {
+        console.error("❌ No video track found in tracks!");
       }
 
       // Wait a bit for remote participants to publish
