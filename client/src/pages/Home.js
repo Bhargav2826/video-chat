@@ -259,6 +259,10 @@ function Home() {
           track.attach(remoteVideoRef.current);
           await tryPlay(remoteVideoRef.current);
           console.log("✅ REMOTE VIDEO ATTACHED");
+        } else if (track.kind === "audio") {
+          // Attach the remote audio track (LiveKit handles creating an audio element if none provided)
+          track.attach();
+          console.log("✅ REMOTE AUDIO ATTACHED");
         }
       });
 
@@ -316,11 +320,17 @@ function Home() {
       livekitRoom.remoteParticipants.forEach((participant) => {
         console.log(`Checking ${participant.identity}...`);
         participant.trackPublications.forEach((pub) => {
-          if (pub.isSubscribed && pub.track && pub.track.kind === "video" && remoteVideoRef.current) {
-            console.log(`📹 Found existing video from ${participant.identity}`);
-            pub.track.attach(remoteVideoRef.current);
-            tryPlay(remoteVideoRef.current);
-            console.log("✅ EXISTING REMOTE VIDEO ATTACHED");
+          if (pub.isSubscribed && pub.track) {
+            if (pub.track.kind === "video" && remoteVideoRef.current) {
+              console.log(`📹 Found existing video from ${participant.identity}`);
+              pub.track.attach(remoteVideoRef.current);
+              tryPlay(remoteVideoRef.current);
+              console.log("✅ EXISTING REMOTE VIDEO ATTACHED");
+            } else if (pub.track.kind === "audio") {
+              console.log(`🔉 Found existing audio from ${participant.identity}`);
+              pub.track.attach();
+              console.log("✅ EXISTING REMOTE AUDIO ATTACHED");
+            }
           }
         });
       });
@@ -393,20 +403,27 @@ function Home() {
 
   // -------------------- End Call --------------------
   const endCall = () => {
-    if (roomRef.current) roomRef.current.disconnect();
+    if (roomRef.current) {
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
+    setRoom(null); // CRITICAL: Reset room state to show "Start Video Call" button again
+
     if (localVideoRef.current?.srcObject)
       localVideoRef.current.srcObject.getTracks().forEach((t) => t.stop());
     if (remoteVideoRef.current?.srcObject)
       remoteVideoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+
     setLocalTracks(null);
     setIsPreviewing(false);
     setIsInCall(false);
-
+    setIncomingCall(null);
     setCallStatus("idle");
     setFocusedVideo("remote");
 
     // stop audio capture when call ends
     stopAudioCapture();
+    console.log("📞 Call ended and state reset.");
   };
 
   const handleAcceptCall = () => {
