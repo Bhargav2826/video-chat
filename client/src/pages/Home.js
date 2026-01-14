@@ -411,6 +411,15 @@ function Home() {
 
   const handleAcceptCall = () => {
     if (!incomingCall) return;
+
+    // Find the caller in our users list to get the full user object if possible
+    const caller = users.find(u => u._id === incomingCall.id) || {
+      _id: incomingCall.id,
+      username: incomingCall.name
+    };
+
+    setSelectedUser(caller);
+
     socket.emit("call-response", {
       toUserId: incomingCall.id,
       accepted: true,
