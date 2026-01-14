@@ -222,6 +222,14 @@ function Home() {
     try {
       console.log(`📞 Joining room: ${roomName} as ${username}`);
 
+      // CRITICAL: Set these states FIRST so video elements render
+      setIsPreviewing(true);
+      setIsInCall(true);
+      setCallStatus("connected");
+
+      // Wait for React to render the video elements
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Get LiveKit token
       const res = await fetch("/api/livekit/token", {
         method: "POST",
@@ -320,9 +328,6 @@ function Home() {
       // Update state
       setRoom(livekitRoom);
       roomRef.current = livekitRoom;
-      setCallStatus("connected");
-      setIsPreviewing(true);
-      setIsInCall(true);
 
       // Start audio transcription
       startAudioCapture(username, roomName);
