@@ -241,18 +241,11 @@ function Home() {
       livekitRoom.on(RoomEvent.TrackSubscribed, async (track, publication, participant) => {
         console.log(`📹 NEW TRACK from ${participant.identity}: ${track.kind}`);
 
-        if (track.kind === "video") {
-          if (remoteVideoRef.current) {
-            // Clear any existing video first
-            if (remoteVideoRef.current.srcObject) {
-              remoteVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
-            }
-
-            // Attach the new track
-            track.attach(remoteVideoRef.current);
-            remoteVideoRef.current.play().catch(e => console.log("Play failed:", e));
-            console.log("✅ REMOTE VIDEO ATTACHED");
-          }
+        if (track.kind === "video" && remoteVideoRef.current) {
+          // Attach the remote video track
+          track.attach(remoteVideoRef.current);
+          await tryPlay(remoteVideoRef.current);
+          console.log("✅ REMOTE VIDEO ATTACHED");
         }
       });
 
@@ -292,25 +285,23 @@ function Home() {
       if (videoTrack && localVideoRef.current) {
         videoTrack.attach(localVideoRef.current);
         localVideoRef.current.muted = true; // Prevent echo
-        localVideoRef.current.play().catch(e => console.log("Local play failed:", e));
+        await tryPlay(localVideoRef.current);
         console.log("✅ LOCAL VIDEO ATTACHED");
       }
 
       // Wait a bit for remote participants to publish
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Check for existing remote tracks
+      // Check for existing remote tracks (handle race condition)
       console.log(`👥 ${livekitRoom.remoteParticipants.size} remote participants`);
       livekitRoom.remoteParticipants.forEach((participant) => {
         console.log(`Checking ${participant.identity}...`);
         participant.trackPublications.forEach((pub) => {
-          if (pub.isSubscribed && pub.track && pub.track.kind === "video") {
+          if (pub.isSubscribed && pub.track && pub.track.kind === "video" && remoteVideoRef.current) {
             console.log(`📹 Found existing video from ${participant.identity}`);
-            if (remoteVideoRef.current) {
-              pub.track.attach(remoteVideoRef.current);
-              remoteVideoRef.current.play().catch(e => console.log("Play failed:", e));
-              console.log("✅ EXISTING REMOTE VIDEO ATTACHED");
-            }
+            pub.track.attach(remoteVideoRef.current);
+            tryPlay(remoteVideoRef.current);
+            console.log("✅ EXISTING REMOTE VIDEO ATTACHED");
           }
         });
       });
