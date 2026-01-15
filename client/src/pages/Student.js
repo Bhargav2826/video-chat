@@ -9,7 +9,7 @@ const SOCKET_URL = "/";
 const LIVEKIT_URL = "wss://video-chat-wfvq5jjj.livekit.cloud";
 const socket = io(SOCKET_URL, { autoConnect: true });
 
-function Parent() {
+function Student() {
     const navigate = useNavigate();
     const username = localStorage.getItem("username") || "Guest";
     const userId = localStorage.getItem("userId");
@@ -38,7 +38,7 @@ function Parent() {
     const audioStreamRef = useRef(null);
 
     useEffect(() => {
-        if (role !== "parent") {
+        if (role !== "student") {
             navigate("/login");
             return;
         }
@@ -250,9 +250,9 @@ function Parent() {
             <nav className="flex items-center justify-between px-6 py-4 bg-white shadow-md z-10">
                 <div className="flex items-center gap-3">
                     <div className="bg-blue-600 p-2 rounded-lg">
-                        <i className="bi bi-heart-fill text-white text-xl"></i>
+                        <i className="bi bi-person-fill text-white text-xl"></i>
                     </div>
-                    <span className="text-xl font-black tracking-tighter text-blue-900">COCOON <span className="text-gray-400">PARENT DASHBOARD</span></span>
+                    <span className="text-xl font-black tracking-tighter text-blue-900">COCOON <span className="text-gray-400">STUDENT DASHBOARD</span></span>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
@@ -268,12 +268,12 @@ function Parent() {
             <div className="flex-grow flex overflow-hidden">
                 <aside className="bg-white border-r border-gray-100 w-80 hidden lg:flex flex-col shadow-sm">
                     <div className="p-6 border-b border-gray-100">
-                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Contact Center</h3>
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Student Directory</h3>
                         <div className="relative">
                             <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                             <input
                                 className="w-full pl-11 pr-4 py-4 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 placeholder-gray-400 transition-all font-semibold"
-                                placeholder="Find faculty or student..."
+                                placeholder="Find faculty or peer..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
@@ -313,10 +313,10 @@ function Parent() {
                     {!selectedUser && (
                         <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-gray-800">
                             <div className="w-40 h-40 bg-white rounded-[3rem] shadow-2xl flex items-center justify-center mb-10 border border-gray-100 animate-pulse">
-                                <i className="bi bi-pc-display-horizontal text-7xl text-blue-600"></i>
+                                <i className="bi bi-book-half text-7xl text-blue-600"></i>
                             </div>
-                            <h1 className="text-5xl font-black mb-4 tracking-tighter">Welcome to <span className="text-blue-600">Parent Dashboard</span></h1>
-                            <p className="text-gray-500 max-w-lg text-xl font-medium leading-relaxed">Connect instantly with faculty members and stay updated with your child's progress through secure video sessions.</p>
+                            <h1 className="text-5xl font-black mb-4 tracking-tighter">Welcome to <span className="text-blue-600">Student Dashboard</span></h1>
+                            <p className="text-gray-500 max-w-lg text-xl font-medium leading-relaxed">Connect instantly with your faculty members for guidance and academic support through secure video sessions.</p>
                         </div>
                     )}
 
@@ -412,4 +412,4 @@ function Parent() {
     );
 }
 
-export default Parent;
+export default Student;

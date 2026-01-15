@@ -20,8 +20,10 @@ function Login() {
         navigate("/faculty");
       } else if (res.data.role === "parent") {
         navigate("/parent");
+      } else if (res.data.role === "student") {
+        navigate("/student");
       } else {
-        navigate("/home"); // Student or default
+        navigate("/home");
       }
     } catch (err) {
       console.error("Login Error:", err);

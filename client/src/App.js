@@ -3,9 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
+import Student from "./pages/Student";
 import Faculty from "./pages/Faculty";
 import Parent from "./pages/Parent";
 import { CallProvider, useCall } from "./context/CallContext";
+
 // -----------------------------
 // Video Call Page Component
 // -----------------------------
@@ -129,6 +131,7 @@ function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/faculty" element={<Faculty />} />
           <Route path="/parent" element={<Parent />} />
+          <Route path="/student" element={<Student />} />
 
           {/* New video call test route */}
           <Route path="/call" element={<VideoCallUI />} />

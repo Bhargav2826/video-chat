@@ -247,139 +247,140 @@ function Faculty() {
 
     return (
         <div className="h-screen flex flex-col bg-gray-950 text-white overflow-hidden">
-            <nav className="flex items-center justify-between px-6 py-4 bg-blue-800 shadow-md z-10 border-b border-white/5">
+            <nav className="flex items-center justify-between px-6 py-4 bg-white shadow-md z-10">
                 <div className="flex items-center gap-3">
-                    <div className="bg-white/20 p-2 rounded-lg">
-                        <i className="bi bi-person-badge-fill text-white text-xl"></i>
+                    <div className="bg-blue-600 p-2 rounded-lg">
+                        <i className="bi bi-mortarboard-fill text-white text-xl"></i>
                     </div>
-                    <span className="text-xl font-bold tracking-tight text-white  italic">Cocoon Faculty Portal</span>
+                    <span className="text-xl font-black tracking-tighter text-blue-900">COCOON <span className="text-gray-400">FACULTY DASHBOARD</span></span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-blue-900/50 px-4 py-1.5 rounded-full border border-blue-400/30">
-                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
-                        <span className="text-sm font-semibold">{username} (Faculty)</span>
+                    <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                        <span className="text-sm font-bold text-gray-800">{username}</span>
                     </div>
-                    <button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/50 px-4 py-1.5 rounded-lg text-sm font-medium transition-all">
+                    <button onClick={handleLogout} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold transition-all">
                         Logout
                     </button>
                 </div>
             </nav>
 
             <div className="flex-grow flex overflow-hidden">
-                <aside className="bg-gray-900 border-r border-white/5 w-80 hidden lg:flex flex-col shadow-2xl">
-                    <div className="p-6 border-b border-white/5">
-                        <h3 className="text-xs font-black text-blue-400 uppercase tracking-[0.2em] mb-4">Internal Directory</h3>
+                <aside className="bg-white border-r border-gray-100 w-80 hidden lg:flex flex-col shadow-sm">
+                    <div className="p-6 border-b border-gray-100">
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Faculty Directory</h3>
                         <div className="relative">
-                            <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                            <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                             <input
-                                className="w-full pl-10 pr-4 py-3 bg-gray-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-600 transition-all font-medium"
-                                placeholder="Search staff & students..."
+                                className="w-full pl-11 pr-4 py-4 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 placeholder-gray-400 transition-all font-semibold"
+                                placeholder="Find student or parent..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
-                    <div className="flex-grow overflow-y-auto custom-scrollbar">
+                    <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1">
                         {isLoadingUsers && (
                             <div className="flex flex-col items-center justify-center p-8 space-y-3">
                                 <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-xs text-gray-500 font-medium">Fetching sync...</span>
+                                <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Bridging connections...</span>
                             </div>
                         )}
                         {usersError && (
                             <div className="m-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                                <p className="text-xs text-red-400 text-center font-medium">{usersError}</p>
+                                <p className="text-xs text-red-500 text-center font-bold tracking-tight">{usersError}</p>
                             </div>
                         )}
                         {!isLoadingUsers && users.filter(u => u.username.toLowerCase().includes(searchTerm.toLowerCase())).map(user => (
                             <button
                                 key={user._id}
                                 onClick={() => setSelectedUser(user)}
-                                className={`w-full flex items-center gap-4 px-6 py-4 transition-all border-l-4 ${selectedUser === user ? "bg-blue-600/10 border-blue-500" : "hover:bg-white/5 border-transparent"}`}
+                                className={`w-full flex items-center gap-4 px-4 py-4 transition-all rounded-2xl ${selectedUser === user ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20" : "hover:bg-gray-50 text-gray-600"}`}
                             >
-                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold text-white shadow-lg">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${selectedUser === user ? "bg-white/20 text-white" : "bg-blue-100 text-blue-600"}`}>
                                     {user.username.charAt(0).toUpperCase()}
                                 </div>
-                                <div className="text-left">
-                                    <div className="text-sm font-bold text-gray-100">{user.username}</div>
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Active Reachable</div>
+                                <div className="text-left min-w-0">
+                                    <div className={`text-sm font-black truncate ${selectedUser === user ? "text-white" : "text-gray-800"}`}>{user.username}</div>
+                                    <div className={`text-[10px] font-bold uppercase tracking-tight ${selectedUser === user ? "text-blue-100" : "text-gray-400"}`}>Available for call</div>
                                 </div>
                             </button>
                         ))}
                     </div>
                 </aside>
 
-                <main className="flex-grow bg-gray-950 relative flex flex-col">
+                <main className="flex-grow flex flex-col relative bg-gray-50">
                     {!selectedUser && (
-                        <div className="flex-grow flex flex-col items-center justify-center p-12 text-center">
-                            <div className="w-32 h-32 bg-blue-500/5 rounded-[2.5rem] border border-blue-500/20 flex items-center justify-center mb-8 rotate-3 hover:rotate-0 transition-transform duration-500 shadow-2xl shadow-blue-500/10">
-                                <i className="bi bi-journal-text text-5xl text-blue-500"></i>
+                        <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-gray-800">
+                            <div className="w-40 h-40 bg-white rounded-[3rem] shadow-2xl flex items-center justify-center mb-10 border border-gray-100 animate-pulse">
+                                <i className="bi bi-briefcase-fill text-7xl text-blue-600"></i>
                             </div>
-                            <h1 className="text-4xl font-black text-white mb-4 tracking-tight">Faculty Management <span className="text-blue-500">Console</span></h1>
-                            <p className="text-gray-400 max-w-lg text-lg font-medium leading-relaxed">Select a member from your internal directory to establish a secure encrypted video communication channel.</p>
+                            <h1 className="text-5xl font-black mb-4 tracking-tighter">Welcome to <span className="text-blue-600">Faculty Dashboard</span></h1>
+                            <p className="text-gray-500 max-w-lg text-xl font-medium leading-relaxed">Connect instantly with students and parents to provide academic support and feedback through secure video sessions.</p>
                         </div>
                     )}
 
                     {selectedUser && (
                         <div className="flex-grow flex flex-col">
-                            <header className="px-8 py-6 bg-gray-900 border-b border-white/5 flex items-center justify-between">
-                                <div className="flex items-center gap-5">
-                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-2xl font-black">
+                            <header className="px-10 py-8 bg-white border-b border-gray-100 flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-600/30">
                                         {selectedUser.username.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-black text-white">{selectedUser.username}</h2>
-                                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500">
-                                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                            Video Channel Status: {callStatus}
+                                        <h2 className="text-2xl font-black text-gray-800">{selectedUser.username}</h2>
+                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
+                                            Encrypted Connection: {callStatus}
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={initiateCall} disabled={isInCall} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50">
-                                    <i className="bi bi-camera-video-fill"></i> Execute Video Call
+                                <button onClick={initiateCall} disabled={isInCall} className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-2xl shadow-blue-600/40 transform active:scale-95 disabled:opacity-50">
+                                    <i className="bi bi-camera-video-fill text-xl"></i> START SECURE CALL
                                 </button>
                             </header>
 
-                            <div className="flex-grow bg-black relative overflow-hidden group/call">
+                            <div className="flex-grow bg-gray-100 relative overflow-hidden p-6 group/call">
                                 {(isPreviewing || isInCall) && (
-                                    <div className="h-full w-full flex flex-col md:flex-row p-4 gap-4">
-                                        <div className="flex-grow relative bg-gray-900 rounded-3xl overflow-hidden border border-white/5">
+                                    <div className="h-full w-full flex flex-col md:flex-row gap-6">
+                                        <div className="flex-grow relative bg-white rounded-[2.5rem] overflow-hidden shadow-2xl border border-gray-100">
                                             <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                                            <div className="absolute bottom-6 left-6 px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl text-xs font-black tracking-widest uppercase text-white border border-white/10">Remote Transmission</div>
+                                            <div className="absolute top-6 left-6 px-4 py-2 bg-blue-600 rounded-xl text-[10px] font-black tracking-widest uppercase text-white shadow-lg shadow-blue-600/30 font-bold">LIVE FEED</div>
                                         </div>
-                                        <div className="w-full md:w-80 h-60 md:h-auto relative bg-gray-900 rounded-3xl overflow-hidden border border-white/5">
+                                        <div className="w-full md:w-96 relative bg-white rounded-[2.5rem] overflow-hidden shadow-2xl border border-gray-100">
                                             <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover"></video>
-                                            <div className="absolute bottom-6 left-6 px-4 py-2 bg-black/40 backdrop-blur-md rounded-2xl text-xs font-black tracking-widest uppercase text-white border border-white/10">Your Feed</div>
+                                            <div className="absolute top-6 left-6 px-4 py-2 bg-gray-900 rounded-xl text-[10px] font-black tracking-widest uppercase text-white font-bold">YOU</div>
                                         </div>
 
-                                        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 z-30 opacity-0 group-hover/call:opacity-100 transition-all duration-300">
+                                        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-6 z-30 opacity-0 group-hover/call:opacity-100 transition-all scale-90 group-hover/call:scale-100">
                                             <button
-                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${isMuted ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:text-blue-500"}`}
                                                 onClick={toggleMute}
                                                 title={isMuted ? "Unmute" : "Mute"}
                                             >
-                                                <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} text-xl`}></i>
+                                                <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} text-2xl`}></i>
                                             </button>
 
-                                            <button className="w-18 h-18 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-xl transition-all hover:scale-110 active:scale-90" onClick={endCall}>
-                                                <i className="bi bi-telephone-x-fill text-2xl"></i>
+                                            <button className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-2xl transition-all hover:rotate-90 active:scale-90" onClick={endCall}>
+                                                <i className="bi bi-telephone-x-fill text-3xl"></i>
                                             </button>
 
                                             <button
-                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"}`}
+                                                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-xl ${isVideoOff ? "bg-red-500 text-white" : "bg-white text-gray-400 hover:text-blue-500"}`}
                                                 onClick={toggleVideo}
                                                 title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
                                             >
-                                                <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
+                                                <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-2xl`}></i>
                                             </button>
                                         </div>
 
                                         {captions.length > 0 && (
-                                            <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-xl flex flex-col gap-3 z-20">
+                                            <div className="absolute bottom-36 left-1/2 -translate-x-1/2 w-full max-w-2xl flex flex-col gap-4 z-20 pointer-events-none">
                                                 {captions.map((c, i) => (
-                                                    <div key={i} className="bg-black/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10 text-center animate-in fade-in slide-in-from-bottom-4">
-                                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter block mb-1">{c.username}</span>
-                                                        <p className="text-white font-medium italic">"{c.text}"</p>
+                                                    <div key={i} className="bg-white shadow-2xl p-6 rounded-[2rem] border border-gray-100 text-center animate-in fade-in slide-in-from-bottom-6 duration-700">
+                                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter block mb-2">{c.username}</span>
+                                                        <p className="text-gray-800 text-lg font-bold leading-tight">"{c.text}"</p>
+                                                        <span className="text-[10px] text-gray-400 font-bold mt-2 block">{c.language} detected</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -393,16 +394,16 @@ function Faculty() {
             </div>
 
             {incomingCall && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
-                    <div className="bg-gray-900 p-8 rounded-[3rem] border border-blue-500/30 w-full max-w-sm text-center shadow-[0_0_100px_rgba(59,130,246,0.2)]">
-                        <div className="w-20 h-20 bg-blue-600 rounded-[2rem] mx-auto mb-6 flex items-center justify-center text-3xl font-black text-white animate-bounce">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-blue-900/40 backdrop-blur-xl p-6">
+                    <div className="bg-white p-10 rounded-[3.5rem] border border-white w-full max-w-md text-center shadow-[0_40px_100px_rgba(30,58,138,0.3)] transform scale-110">
+                        <div className="w-28 h-28 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-[2.5rem] mx-auto mb-8 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-600/40 animate-pulse">
                             {incomingCall.name.charAt(0).toUpperCase()}
                         </div>
-                        <h3 className="text-2xl font-black text-white mb-2">{incomingCall.name}</h3>
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mb-8">Inbound Request Detected</p>
-                        <div className="flex gap-4">
-                            <button onClick={() => acceptCall(incomingCall.roomName)} className="flex-grow py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg transition-all active:scale-95">Accept</button>
-                            <button onClick={() => setIncomingCall(null)} className="flex-grow py-4 bg-red-600 text-white font-black rounded-2xl shadow-lg transition-all active:scale-95">Decline</button>
+                        <h3 className="text-3xl font-black text-gray-800 mb-2">{incomingCall.name}</h3>
+                        <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[10px] mb-10">Signaling Verification Incoming</p>
+                        <div className="flex gap-6">
+                            <button onClick={() => acceptCall(incomingCall.roomName)} className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95">ACCEPT CALL</button>
+                            <button onClick={() => setIncomingCall(null)} className="flex-grow py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95">DECLINE</button>
                         </div>
                     </div>
                 </div>
