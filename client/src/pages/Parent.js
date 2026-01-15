@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { io } from "socket.io-client";
 import "bootstrap-icons/font/bootstrap-icons.css";
+
+const socket = io("/", { autoConnect: true });
 
 function Parent() {
     const navigate = useNavigate();
@@ -18,6 +21,7 @@ function Parent() {
     const [callHistory, setCallHistory] = useState([]);
     const [activeCall, setActiveCall] = useState(null);
     const [safetySummary, setSafetySummary] = useState(null);
+    const [liveCaptions, setLiveCaptions] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [activeTab, setActiveTab] = useState("chat"); // chat, safety, calls, report
@@ -30,6 +34,21 @@ function Parent() {
         }
     }, [role, navigate]);
 
+    // Handle Socket Transcriptions
+    useEffect(() => {
+        socket.on("new-transcription", (data) => {
+            setLiveCaptions(prev => [...prev, data].slice(-15));
+        });
+        return () => socket.off("new-transcription");
+    }, []);
+
+    // Join room for live monitoring when a call is active
+    useEffect(() => {
+        if (activeCall?.roomName) {
+            socket.emit("join-room", activeCall.roomName);
+        }
+    }, [activeCall]);
+
     // Polling for active status
     useEffect(() => {
         let interval;
@@ -37,13 +56,15 @@ function Parent() {
             const checkStatus = async () => {
                 try {
                     const res = await axios.get(`/api/messages/active-call/${child._id}`);
-                    setActiveCall(res.data.active ? res.data.call : null);
+                    const newActiveCall = res.data.active ? res.data.call : null;
+                    setActiveCall(newActiveCall);
+                    if (!newActiveCall) setLiveCaptions([]);
                 } catch (err) {
                     console.error("Status check failed");
                 }
             };
             checkStatus();
-            interval = setInterval(checkStatus, 10000); // Check every 10 seconds
+            interval = setInterval(checkStatus, 5000); // Check every 5 seconds for live feel
         }
         return () => clearInterval(interval);
     }, [child]);
@@ -58,6 +79,7 @@ function Parent() {
         setFaculties([]);
         setMessages([]);
         setSelectedFaculty(null);
+        setLiveCaptions([]);
 
         try {
             const studentRes = await axios.get(`/api/messages/child/${searchId.trim()}`);
@@ -133,7 +155,7 @@ function Parent() {
                 </div>
                 <div className="flex items-center gap-4">
                     {child && (
-                        <div className={`px-4 py-2 rounded-2xl flex items-center gap-3 border transition-all ${activeCall ? "bg-red-50 border-red-100" : "bg-green-50 border-green-100"}`}>
+                        <div className={`px-4 py-2 rounded-2xl flex items-center gap-3 border transition-all ${activeCall ? "bg-red-50 border-red-100 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-green-50 border-green-100"}`}>
                             <div className={`w-2.5 h-2.5 rounded-full ${activeCall ? "bg-red-500 animate-pulse" : "bg-green-500"}`}></div>
                             <span className={`text-[10px] font-black uppercase tracking-widest ${activeCall ? "text-red-700" : "text-green-700"}`}>
                                 {activeCall ? "LIVE: IN SESSION" : "STATUS: IDLE"}
@@ -179,7 +201,7 @@ function Parent() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 mt-4">
                                         <button onClick={() => setActiveTab("safety")} className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "safety" ? "bg-white text-blue-600" : "bg-white/10 hover:bg-white/20"}`}>Flags: {flaggedMessages.length}</button>
-                                        <button onClick={() => setActiveTab("calls")} className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "calls" ? "bg-white text-blue-600" : "bg-white/10 hover:bg-white/20"}`}>Calls: {callHistory.length}</button>
+                                        <button onClick={() => setActiveTab("calls")} className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "calls" ? "bg-white text-blue-600" : "bg-white/10 hover:bg-white/20"}`}>History</button>
                                     </div>
                                     <button onClick={() => setActiveTab("report")} className={`w-full mt-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "report" ? "bg-white text-blue-600 shadow-lg" : "bg-white/20 hover:bg-white/30"}`}>
                                         <i className="bi bi-graph-up-arrow mr-2"></i> Safety Dashboard
@@ -219,7 +241,6 @@ function Parent() {
 
                 {/* Main Content Area */}
                 <main className="flex-grow flex flex-col relative bg-gray-50 overflow-hidden">
-                    {/* Placeholder when no child is searched */}
                     {!child ? (
                         <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-gray-800">
                             <div className="w-48 h-48 bg-white rounded-[4rem] shadow-2xl flex items-center justify-center mb-12 border border-gray-100 group hover:scale-105 transition-all">
@@ -236,7 +257,7 @@ function Parent() {
                                     <button onClick={() => setActiveTab("chat")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "chat" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}>Logs</button>
                                     <button onClick={() => setActiveTab("safety")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "safety" ? "bg-white text-red-600 shadow-sm" : "text-gray-400 hover:text-red-400"}`}>Safety Flags {flaggedMessages.length > 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>}</button>
                                     <button onClick={() => setActiveTab("calls")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "calls" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}>Call History</button>
-                                    <button onClick={() => setActiveTab("report")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "report" ? "bg-white text-green-600 shadow-sm" : "text-gray-400 hover:text-green-600"}`}>Weekly Summary</button>
+                                    <button onClick={() => setActiveTab("report")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "report" ? "bg-white text-green-600 shadow-sm" : "text-gray-400 hover:text-green-600"}`}>Summary</button>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     {(activeTab === "chat" && selectedFaculty) && (
@@ -256,9 +277,37 @@ function Parent() {
                             {/* Dynamic Content Views */}
                             <div className="flex-grow overflow-hidden relative">
 
+                                {/* LIVE MONITOR Marquee (Visible everywhere if active) */}
+                                {activeCall && (
+                                    <div className="absolute top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md z-50 py-4 px-10 border-b border-white/10 shadow-xl overflow-hidden animate-in slide-in-from-top duration-500">
+                                        <div className="max-w-4xl mx-auto flex items-center gap-6">
+                                            <div className="flex-shrink-0 flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                                                <span className="text-[10px] font-black text-white uppercase tracking-widest whitespace-nowrap">Live Audio Feed</span>
+                                            </div>
+                                            <div className="flex-grow flex gap-4 overflow-hidden mask-fade-right">
+                                                {liveCaptions.length === 0 ? (
+                                                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest italic animate-pulse">Establishing audio synchronization...</span>
+                                                ) : (
+                                                    <div className="flex gap-4 animate-marquee-slow whitespace-nowrap">
+                                                        {liveCaptions.map((cap, i) => (
+                                                            <div key={i} className="flex items-center gap-2">
+                                                                <span className="text-blue-400 font-black text-[10px]">{cap.username}:</span>
+                                                                <span className="text-white font-medium text-[10px]">{cap.text}</span>
+                                                                <span className="px-1.5 py-0.5 bg-white/10 rounded text-[8px] font-black text-white/50">{cap.language}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button onClick={() => setActiveTab("calls")} className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg shadow-blue-600/30">View Analysis</button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* 1. CHAT LOGS VIEW */}
                                 {activeTab === "chat" && (
-                                    <div className="h-full flex flex-col">
+                                    <div className={`h-full flex flex-col ${activeCall ? "pt-20" : ""}`}>
                                         {!selectedFaculty ? (
                                             <div className="flex-grow flex flex-col items-center justify-center p-12 text-center opacity-40">
                                                 <i className="bi bi-chat-left-dots text-5xl mb-4"></i>
@@ -279,8 +328,8 @@ function Parent() {
                                                                     <div key={idx} className={`flex ${msg.sender === child._id ? "justify-end" : "justify-start"}`}>
                                                                         <div className={`max-w-[85%] flex flex-col ${msg.sender === child._id ? "items-end" : "items-start"}`}>
                                                                             <div className={`px-8 py-5 rounded-[2.5rem] shadow-sm text-sm font-medium leading-relaxed group relative ${msg.sender === child._id
-                                                                                ? "bg-blue-600 text-white rounded-tr-none"
-                                                                                : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
+                                                                                ? "bg-blue-600 text-white rounded-tr-none shadow-blue-200"
+                                                                                : "bg-white text-gray-800 rounded-tl-none border border-gray-100 shadow-gray-200"
                                                                                 }`}>
                                                                                 {msg.text}
                                                                                 {msg.flagged && (
@@ -308,99 +357,86 @@ function Parent() {
 
                                 {/* 2. SAFETY FLAGS VIEW */}
                                 {activeTab === "safety" && (
-                                    <div className="h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar">
+                                    <div className={`h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar ${activeCall ? "pt-32" : ""}`}>
                                         <div className="max-w-4xl mx-auto">
                                             <div className="flex items-center justify-between mb-10">
                                                 <div>
                                                     <h2 className="text-3xl font-black text-gray-800 flex items-center gap-4">
                                                         <span className="bg-red-100 text-red-600 p-2.5 rounded-2xl"><i className="bi bi-flag-fill"></i></span>
-                                                        High-Priority Safety Flags
+                                                        Safety Flags
                                                     </h2>
-                                                    <p className="text-gray-400 font-medium mt-2">AI-driven monitoring detecting keywords or patterns that may require attention.</p>
                                                 </div>
                                                 <div className="bg-red-600 text-white px-8 py-4 rounded-3xl shadow-xl shadow-red-600/20 font-black text-xs uppercase tracking-widest">
                                                     Total flags: {flaggedMessages.length}
                                                 </div>
                                             </div>
-
-                                            {flaggedMessages.length === 0 ? (
-                                                <div className="bg-white rounded-[3rem] p-20 text-center border border-gray-100 shadow-sm">
-                                                    <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                        <i className="bi bi-shield-check-fill text-4xl text-green-500"></i>
+                                            {flaggedMessages.map((msg, i) => (
+                                                <div key={i} className="bg-white rounded-[2.5rem] p-8 border border-red-100 shadow-sm mb-6">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl">{msg.flagReason}</span>
+                                                        <span className="text-[10px] text-gray-400 font-bold">{new Date(msg.timestamp).toLocaleString()}</span>
                                                     </div>
-                                                    <h3 className="text-2xl font-black text-gray-800 mb-2">System Status: Secure</h3>
-                                                    <p className="text-gray-400 font-medium">No safety concerns or flagged interactions detected for {child.username}.</p>
+                                                    <div className="text-gray-800 font-medium italic">"{msg.text}"</div>
                                                 </div>
-                                            ) : (
-                                                <div className="space-y-6">
-                                                    {flaggedMessages.map((msg, i) => (
-                                                        <div key={i} className="bg-white rounded-[2.5rem] p-8 border border-red-100 shadow-sm hover:shadow-md transition-all">
-                                                            <div className="flex items-start justify-between mb-6">
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center text-white text-xs font-black">
-                                                                        ID:{msg._id.slice(-4)}
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="text-sm font-black text-gray-800">Sender: {msg.sender === child._id ? child.username : "Faculty Member"}</div>
-                                                                        <div className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-1">Ref:{msg.flagReason}</div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 py-2 bg-gray-50 rounded-xl">
-                                                                    {new Date(msg.timestamp).toLocaleString()}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-red-50 p-6 rounded-3xl border border-red-100 text-red-900 font-medium italic relative">
-                                                                <i className="bi bi-quote absolute top-2 left-2 text-red-200 text-4xl"></i>
-                                                                "{msg.text}"
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                            ))}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* 3. CALL HISTORY VIEW */}
                                 {activeTab === "calls" && (
-                                    <div className="h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar">
+                                    <div className={`h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar ${activeCall ? "pt-32" : ""}`}>
                                         <div className="max-w-4xl mx-auto">
-                                            <div className="flex items-center justify-between mb-10">
-                                                <div>
-                                                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-4">
-                                                        <span className="bg-blue-100 text-blue-600 p-2.5 rounded-2xl"><i className="bi bi-camera-reels-fill"></i></span>
-                                                        Call Logs & Duration
-                                                    </h2>
-                                                    <p className="text-gray-400 font-medium mt-2">Historical breakdown of video and voice sessions.</p>
-                                                </div>
-                                            </div>
+                                            <h2 className="text-3xl font-black text-gray-800 mb-10">Interaction Logs</h2>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-                                                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Session Time</div>
-                                                    <div className="text-4xl font-black text-blue-600">{formatDuration(callHistory.reduce((acc, c) => acc + (c.duration || 0), 0))}</div>
+                                            {/* Live Transcription Feed for Calls Tab */}
+                                            {activeCall && (
+                                                <div className="bg-white rounded-[3rem] p-8 border border-blue-100 shadow-xl mb-12 animate-in fade-in zoom-in duration-500">
+                                                    <div className="flex items-center justify-between mb-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+                                                            <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Real-time Session Transcription</h3>
+                                                        </div>
+                                                        <span className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Active Link</span>
+                                                    </div>
+                                                    <div className="bg-gray-50 rounded-2xl p-6 min-h-[200px] border border-gray-100 overflow-y-auto max-h-64 custom-scrollbar">
+                                                        {liveCaptions.length === 0 ? (
+                                                            <div className="h-full flex flex-col items-center justify-center text-center py-10">
+                                                                <i className="bi bi-mic-fill text-gray-200 text-4xl mb-4"></i>
+                                                                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Monitoring silent audio streams...</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-4">
+                                                                {liveCaptions.map((cap, i) => (
+                                                                    <div key={i} className="flex flex-col gap-1">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{cap.username}</span>
+                                                                            <span className="text-[8px] font-black text-gray-400 border border-gray-200 px-2 py-0.5 rounded uppercase">{cap.language}</span>
+                                                                        </div>
+                                                                        <p className="text-sm text-gray-800 font-medium leading-relaxed">{cap.text}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Active Calls Info</div>
-                                                    <div className="text-4xl font-black text-gray-800">{callHistory.length} <span className="text-sm text-gray-400">Total Calls</span></div>
-                                                </div>
-                                            </div>
+                                            )}
 
-                                            <div className="space-y-4">
+                                            <div className="space-y-4 pb-20">
                                                 {callHistory.map((call, i) => (
-                                                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between hover:border-blue-200 transition-all">
+                                                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between">
                                                         <div className="flex items-center gap-6">
                                                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl ${call.type === "video" ? "bg-blue-50 text-blue-600" : "bg-green-50 text-green-600"}`}>
                                                                 <i className={`bi ${call.type === "video" ? "bi-camera-video-fill" : "bi-telephone-fill"}`}></i>
                                                             </div>
                                                             <div>
                                                                 <div className="text-sm font-black text-gray-800 uppercase tracking-widest">{call.type} Call</div>
-                                                                <div className="text-[10px] text-gray-400 font-bold mt-1">Participants: {call.participants.join(" & ")}</div>
+                                                                <div className="text-[10px] text-gray-400 font-bold mt-1">Duration: {formatDuration(call.duration || 0)}</div>
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="text-xs font-black text-gray-800">{formatDuration(call.duration || 0)}</div>
-                                                            <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter mt-1">{new Date(call.createdAt).toLocaleDateString()} @ {new Date(call.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                            <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">{new Date(call.createdAt).toLocaleDateString()}</div>
+                                                            <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter mt-1">{new Date(call.createdAt).toLocaleTimeString()}</div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -409,7 +445,7 @@ function Parent() {
                                     </div>
                                 )}
 
-                                {/* 4. WEEKLY REPORT VIEW */}
+                                {/* 4. SUMMARY VIEW */}
                                 {activeTab === "report" && (
                                     <div className="h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar">
                                         <div className="max-w-4xl mx-auto">
@@ -417,32 +453,24 @@ function Parent() {
                                                 <div className="relative z-10">
                                                     <div className="inline-block px-6 py-2 bg-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] mb-8">Weekly Safety Summary</div>
                                                     <h2 className="text-6xl font-black mb-6 tracking-tighter leading-[0.9]">Overall Status:<br />
-                                                        <span className={safetySummary?.flaggedCount > 0 ? "text-red-500" : "text-green-500"}>
-                                                            {safetySummary?.status || "Analyzing..."}
+                                                        <span className={flaggedMessages.length > 0 ? "text-red-500" : "text-green-500"}>
+                                                            {flaggedMessages.length > 0 ? "Attention Required" : "Secure System"}
                                                         </span>
                                                     </h2>
-                                                    <p className="text-white/40 max-w-md font-medium leading-relaxed italic text-lg opacity-80 mt-4 leading-relaxed border-l-2 border-white/20 pl-6">"Guardian Monitoring active for {child.username}. Data point verification across all channels completed."</p>
-                                                </div>
-                                                <div className="absolute top-0 right-0 p-12 opacity-10">
-                                                    <i className="bi bi-shield-fill-check text-[15rem]"></i>
                                                 </div>
                                             </div>
-
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                                 <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <i className="bi bi-chat-heart-fill text-4xl text-blue-500 mb-4 block"></i>
                                                     <div className="text-5xl font-black text-gray-800 mb-2">{safetySummary?.totalMessages}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Messages Processed</div>
+                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Msgs</div>
                                                 </div>
                                                 <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <i className="bi bi-camera-video-fill text-4xl text-purple-500 mb-4 block"></i>
                                                     <div className="text-5xl font-black text-gray-800 mb-2">{safetySummary?.totalCalls}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Secure Call Cycles</div>
+                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Calls</div>
                                                 </div>
                                                 <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <i className="bi bi-shield-exclamation text-4xl text-red-500 mb-4 block"></i>
-                                                    <div className="text-5xl font-black text-gray-800 mb-2">{safetySummary?.flaggedCount}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Safety Flags</div>
+                                                    <div className="text-5xl font-black text-gray-800 mb-2">{flaggedMessages.length}</div>
+                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Flags</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -453,6 +481,24 @@ function Parent() {
                     )}
                 </main>
             </div>
+
+            {/* Global Style for Marquee */}
+            <style jsx>{`
+                @keyframes marquee-slow {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+                .animate-marquee-slow {
+                    display: inline-flex;
+                    animation: marquee-slow 30s linear infinite;
+                }
+                .animate-marquee-slow:hover {
+                    animation-play-state: paused;
+                }
+                .mask-fade-right {
+                    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+                }
+            `}</style>
         </div>
     );
 }
