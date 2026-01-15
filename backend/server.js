@@ -262,7 +262,7 @@ io.on("connection", (socket) => {
     console.log(`👤 Socket ${socket.id} joined room: ${roomName}`);
   });
 
-  socket.on("call-user", ({ toUserId, fromUserId, roomName }) => {
+  socket.on("call-user", ({ toUserId, fromUserId, roomName, type }) => {
     const callee = onlineUsers[toUserId];
     const caller = onlineUsers[fromUserId];
     if (callee && caller) {
@@ -290,18 +290,23 @@ io.on("connection", (socket) => {
         fromUserId,
         fromUserName: caller.userName,
         roomName,
+        type: type || "video", // Forward the call type
       });
-      console.log(`📞 ${caller.userName} is calling ${callee.userName}`);
+      console.log(`📞 ${caller.userName} is calling ${callee.userName} (${type || "video"})`);
     }
   });
 
-  socket.on("call-response", ({ toUserId, accepted, roomName }) => {
+  socket.on("call-response", ({ toUserId, accepted, roomName, type }) => {
     const caller = onlineUsers[toUserId];
     if (caller) {
       if (accepted) {
-        socket.join(roomName); // Callee joins the room
+        socket.join(roomName);
       }
-      io.to(caller.socketId).emit("call-response", { accepted, roomName });
+      io.to(caller.socketId).emit("call-response", {
+        accepted,
+        roomName,
+        type: type || "video" // Forward the call type
+      });
       console.log(`📲 Call ${accepted ? "accepted ✅" : "rejected ❌"} for ${roomName}`);
     }
   });

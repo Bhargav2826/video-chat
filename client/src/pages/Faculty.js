@@ -20,7 +20,8 @@ function Faculty() {
     const [incomingCall, setIncomingCall] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
-    const [callStatus, setCallStatus] = useState("idle");
+    const [callStatus, setCallStatus] = useState("idle"); // idle, calling, incoming, connected
+    const [callType, setCallType] = useState("video"); // video or voice
     const [localTracks, setLocalTracks] = useState(null);
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [usersError, setUsersError] = useState("");
@@ -135,6 +136,7 @@ function Faculty() {
     };
 
     const startCameraPreview = async () => {
+        if (callType === "voice") return [];
         try {
             setIsPreviewing(true);
             let attempts = 0;
@@ -197,12 +199,13 @@ function Faculty() {
         audioStreamRef.current = null;
     };
 
-    const acceptCall = useCallback(async (roomName) => {
+    const acceptCall = useCallback(async (roomName, type) => {
         try {
             socket.emit("join-room", roomName);
             setIsInCall(true);
             setIsPreviewing(true);
             setCallStatus("connected");
+            setCallType(type); // Set call type when accepting
             await new Promise(r => setTimeout(r, 200));
             const res = await fetch("/api/livekit/token", {
                 method: "POST",
@@ -222,15 +225,17 @@ function Faculty() {
                 }
             });
             await livekitRoom.connect(LIVEKIT_URL, data.token);
-            let tracks = await createLocalTracks({ audio: true, video: true });
+            let tracks = await createLocalTracks({ audio: true, video: (type === "video") }); // Use 'type' here
             setLocalTracks(tracks);
             for (const track of tracks) {
                 await livekitRoom.localParticipant.publishTrack(track);
             }
-            const vTrack = tracks.find(t => t.kind === "video");
-            if (vTrack && localVideoRef.current) {
-                vTrack.attach(localVideoRef.current);
-                await tryPlay(localVideoRef.current);
+            if (type === "video") { // Use 'type' here
+                const vTrack = tracks.find(t => t.kind === "video");
+                if (vTrack && localVideoRef.current) {
+                    vTrack.attach(localVideoRef.current);
+                    await tryPlay(localVideoRef.current);
+                }
             }
 
             // Sync existing remote tracks
@@ -258,9 +263,11 @@ function Faculty() {
             toUserId: incomingCall.id,
             accepted: true,
             roomName: incomingCall.roomName,
+            type: incomingCall.type, // Pass type back
         });
+        setCallType(incomingCall.type || "video");
         setIncomingCall(null);
-        acceptCall(incomingCall.roomName);
+        acceptCall(incomingCall.roomName, incomingCall.type || "video");
     };
 
     const handleDeclineCall = () => {
@@ -270,24 +277,28 @@ function Faculty() {
         setCallStatus("idle");
     };
 
-    const initiateCall = async () => {
+    const initiateCall = async (type = "video") => {
         if (!selectedUser) return;
+        setCallType(type);
         setIsPreviewing(true);
         const roomName = `room_${[username, selectedUser.username].sort().join("_")}`;
         setCallStatus("calling");
-        await startCameraPreview();
-        socket.emit("call-user", { toUserId: selectedUser._id, fromUserId: userId, roomName });
+        if (type === "video") {
+            await startCameraPreview();
+        }
+        socket.emit("call-user", { toUserId: selectedUser._id, fromUserId: userId, roomName, type });
         socket.emit("join-room", roomName);
         startAudioCapture(username, roomName);
     };
 
     useEffect(() => {
-        socket.on("incoming-call", ({ fromUserId, fromUserName, roomName }) => {
-            setIncomingCall({ id: fromUserId, name: fromUserName, roomName });
+        socket.on("incoming-call", ({ fromUserId, fromUserName, roomName, type }) => {
+            setIncomingCall({ id: fromUserId, name: fromUserName, roomName, type });
             setCallStatus("incoming");
+            setCallType(type || "video");
         });
-        socket.on("call-response", ({ accepted, roomName }) => {
-            if (accepted) acceptCall(roomName);
+        socket.on("call-response", ({ accepted, roomName, type }) => { // Receive type here
+            if (accepted) acceptCall(roomName, type); // Pass type to acceptCall
             else setCallStatus("idle");
         });
         socket.on("new-transcription", (data) => {
@@ -432,17 +443,20 @@ function Faculty() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <button onClick={initiateCall} disabled={isInCall} className="w-12 h-12 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center transition-all transform active:scale-95 disabled:opacity-50" title="Start Video Call">
+                                    <button onClick={() => initiateCall("voice")} disabled={isInCall} className="w-12 h-12 bg-green-50 hover:bg-green-100 text-green-600 rounded-2xl flex items-center justify-center transition-all transform active:scale-95 disabled:opacity-50" title="Start Voice Call">
+                                        <i className="bi bi-telephone-fill text-lg"></i>
+                                    </button>
+                                    <button onClick={() => initiateCall("video")} disabled={isInCall} className="w-12 h-12 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center transition-all transform active:scale-95 disabled:opacity-50" title="Start Video Call">
                                         <i className="bi bi-camera-video-fill text-xl"></i>
                                     </button>
-                                    <button onClick={initiateCall} disabled={isInCall} className="px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl shadow-blue-600/30 transform active:scale-95 disabled:opacity-50">
+                                    <button onClick={() => initiateCall("video")} disabled={isInCall} className="px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl shadow-blue-600/30 transform active:scale-95 disabled:opacity-50">
                                         <i className="bi bi-shield-check"></i> START CALL
                                     </button>
                                 </div>
                             </header>
 
                             {/* CHAT INTERFACE - WHATSAPP STYLE */}
-                            <div className="flex-grow flex flex-col bg-gray-50 h-0 overflow-hidden relative">
+                            <div className="flex-grow flex flex-col bg-gray-50 h-0 overflow-hidden relative shadow-inner border-x border-gray-100/50">
                                 {/* Chat Messages Area */}
                                 <div
                                     id="chat-container"
@@ -549,6 +563,11 @@ function Faculty() {
                             <button onClick={toggleMute} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white border border-white/20 hover:bg-white/20"}`}>
                                 <i className={`bi ${isMuted ? "bi-mic-mute-fill" : "bi-mic-fill"} text-xl`}></i>
                             </button>
+                            {callType === "video" && (
+                                <button onClick={toggleVideo} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white hover:bg-white/20"}`}>
+                                    <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
+                                </button>
+                            )}
                             <button onClick={endCall} className="w-14 h-14 rounded-2xl bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-xl active:scale-90">
                                 <i className="bi bi-telephone-x-fill text-2xl"></i>
                             </button>
@@ -570,7 +589,22 @@ function Faculty() {
                     <div className={`flex-grow relative flex flex-col ${isMinimized ? "p-0" : "md:flex-row gap-8 p-10 pt-36 h-full"}`}>
                         {/* Remote Video Container */}
                         <div className={`flex-grow relative bg-gray-900 overflow-hidden border border-white/5 transition-all duration-700 ${isMinimized ? "rounded-none h-full" : "rounded-[4rem] shadow-[0_0_120px_rgba(0,0,0,0.8)]"}`}>
-                            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
+                            {/* Remote Video / Voice Avatar */}
+                            <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
+                                {callType === "voice" ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-40 h-40 rounded-full bg-blue-600 flex items-center justify-center text-white text-6xl font-black shadow-2xl animate-pulse ring-8 ring-blue-600/20">
+                                            {selectedUser ? selectedUser.username.charAt(0).toUpperCase() : "?"}
+                                        </div>
+                                        <div className="mt-8 text-white font-black uppercase tracking-[0.3em] text-sm flex items-center gap-3">
+                                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                            Voice Call Active
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <video ref={remoteVideoRef} className="w-full h-full object-cover" autoPlay playsInline />
+                                )}
+                            </div>
                             {!isMinimized && (
                                 <>
                                     <div className="absolute bottom-12 left-12 px-8 py-4 bg-black/40 backdrop-blur-2xl rounded-3xl border border-white/10 flex items-center gap-4">
@@ -586,17 +620,19 @@ function Faculty() {
                         </div>
 
                         {/* Local Video Container */}
-                        <div className={`${isMinimized
-                            ? "absolute bottom-4 right-4 w-32 h-20 outline outline-4 outline-black/40"
-                            : "w-full md:w-[480px] border border-white/10 shadow-3xl"} relative bg-gray-900 rounded-[2.5rem] overflow-hidden transition-all duration-700 aspect-video md:aspect-auto`}>
-                            <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover"></video>
-                            {!isMinimized && (
-                                <div className="absolute bottom-10 left-10 px-6 py-3 bg-black/40 backdrop-blur-2xl rounded-2xl border border-white/10 flex items-center gap-3">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                                    <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">MY STREAM (PREVIEW)</span>
-                                </div>
-                            )}
-                        </div>
+                        {callType === "video" && (
+                            <div className={`${isMinimized
+                                ? "absolute bottom-4 right-4 w-32 h-20 outline outline-4 outline-black/40"
+                                : "w-full md:w-[480px] border border-white/10 shadow-3xl"} relative bg-gray-900 rounded-[2.5rem] overflow-hidden transition-all duration-700 aspect-video md:aspect-auto`}>
+                                <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover"></video>
+                                {!isMinimized && (
+                                    <div className="absolute bottom-10 left-10 px-6 py-3 bg-black/40 backdrop-blur-2xl rounded-2xl border border-white/10 flex items-center gap-3">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">MY STREAM (PREVIEW)</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {!isMinimized && (
                             <>
@@ -614,13 +650,15 @@ function Faculty() {
                                         <i className="bi bi-telephone-x-fill text-2xl"></i>
                                     </button>
 
-                                    <button
-                                        className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${isVideoOff ? "bg-red-500 text-white shadow-[0_10px_20px_rgba(239,68,68,0.3)]" : "bg-white/10 hover:bg-white/20 text-white border border-white/10"}`}
-                                        onClick={toggleVideo}
-                                        title={isVideoOff ? "Enable Camera" : "Disable Camera"}
-                                    >
-                                        <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
-                                    </button>
+                                    {callType === "video" && (
+                                        <button
+                                            className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${isVideoOff ? "bg-red-500 text-white shadow-[0_10px_20px_rgba(239,68,68,0.3)]" : "bg-white/10 hover:bg-white/20 text-white border border-white/10"}`}
+                                            onClick={toggleVideo}
+                                            title={isVideoOff ? "Enable Camera" : "Disable Camera"}
+                                        >
+                                            <i className={`bi ${isVideoOff ? "bi-camera-video-off-fill" : "bi-camera-video-fill"} text-xl`}></i>
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Overlay Captions */}
@@ -651,7 +689,7 @@ function Faculty() {
                             {incomingCall.name.charAt(0).toUpperCase()}
                         </div>
                         <h3 className="text-3xl font-black text-gray-800 mb-2">{incomingCall.name}</h3>
-                        <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[10px] mb-10">Signaling Verification Incoming</p>
+                        <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[10px] mb-10">Incoming {incomingCall.type === "voice" ? "Voice" : "Video"} Call</p>
                         <div className="flex gap-6">
                             <button onClick={handleAcceptCall} className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95">ACCEPT CALL</button>
                             <button onClick={handleDeclineCall} className="flex-grow py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95">DECLINE</button>
