@@ -181,7 +181,22 @@ router.post("/link-child", async (req, res) => {
     parent.linkedStudentIds.push(studentId);
     await parent.save();
 
-    res.json({ message: "Student linked successfully", linkedStudentIds: parent.linkedStudentIds });
+    res.json({
+      message: "Student linked successfully",
+      linkedStudentIds: parent.linkedStudentIds,
+      studentName: student.username
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Get student names for a list of IDs
+router.post("/get-student-names", async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    const students = await Student.find({ studentId: { $in: studentIds } }, "studentId username");
+    res.json(students);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

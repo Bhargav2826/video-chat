@@ -30,9 +30,13 @@ function Parent() {
 
     // Child Linking State
     const [linkedStudentIds, setLinkedStudentIds] = useState([]);
+    const [linkedStudents, setLinkedStudents] = useState([]); // [{ studentId, username }]
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [linkInputId, setLinkInputId] = useState("");
     const [linkMessage, setLinkMessage] = useState("");
+
+    // Refs for smooth scrolling
+    const chatEndRef = useRef(null);
 
     useEffect(() => {
         if (role !== "parent") {
@@ -40,8 +44,22 @@ function Parent() {
             return;
         }
         const savedIds = localStorage.getItem("linkedStudentIds");
-        if (savedIds) setLinkedStudentIds(JSON.parse(savedIds));
+        if (savedIds) {
+            const ids = JSON.parse(savedIds);
+            setLinkedStudentIds(ids);
+            fetchStudentNames(ids);
+        }
     }, [role, navigate]);
+
+    const fetchStudentNames = async (ids) => {
+        if (!ids || ids.length === 0) return;
+        try {
+            const res = await axios.post("/api/auth/get-student-names", { studentIds: ids });
+            setLinkedStudents(res.data);
+        } catch (err) {
+            console.error("Failed to fetch student names:", err);
+        }
+    };
 
     // Handle Socket Transcriptions
     useEffect(() => {
@@ -75,10 +93,14 @@ function Parent() {
                 }
             };
             checkStatus();
-            interval = setInterval(checkStatus, 5000); // Check every 5 seconds for live feel
+            interval = setInterval(checkStatus, 5000);
         }
         return () => clearInterval(interval);
-    }, [child]);
+    }, [child, userId]);
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, liveCaptions]);
 
     const handleLinkChild = async (e) => {
         if (e) e.preventDefault();
@@ -93,6 +115,10 @@ function Parent() {
             const newIds = res.data.linkedStudentIds;
             setLinkedStudentIds(newIds);
             localStorage.setItem("linkedStudentIds", JSON.stringify(newIds));
+
+            // Update linked students with name
+            setLinkedStudents(prev => [...prev, { studentId: linkInputId.trim(), username: res.data.studentName }]);
+
             setLinkMessage("Child linked successfully!");
             setLinkInputId("");
             setTimeout(() => {
@@ -104,9 +130,7 @@ function Parent() {
         }
     };
 
-    const handleSearch = async (e) => {
-        if (e) e.preventDefault();
-        const tid = searchId.trim();
+    const handleSearch = async (tid) => {
         if (!tid) return;
 
         // Security Check: Role-Locked Access
@@ -130,7 +154,6 @@ function Parent() {
             const studentData = studentRes.data;
             setChild(studentData);
 
-            // Fetch initial monitoring data with parent identity header for verification
             const config = { headers: { "x-parent-id": userId } };
             const [interactions, flagged, calls, summary] = await Promise.all([
                 axios.get(`/api/messages/interactions/${studentData._id}`, config),
@@ -191,407 +214,386 @@ function Parent() {
     };
 
     return (
-        <div className="h-screen flex flex-col bg-gray-950 text-white overflow-hidden">
-            {/* Navbar */}
-            <nav className="flex items-center justify-between px-6 py-4 bg-white shadow-md z-10">
-                <div className="flex items-center gap-3">
+        <div className="h-screen flex flex-col bg-gray-50 text-gray-950 overflow-hidden font-sans antialiased">
+            {/* Unified Navbar - Aligned with Student/Faculty */}
+            <nav className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-100 shadow-md z-50">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setChild(null)}>
                     <div className="bg-blue-600 p-2 rounded-lg">
-                        <i className="bi bi-shield-check text-white text-xl"></i>
+                        <i className="bi bi-shield-lock-fill text-white text-xl"></i>
                     </div>
-                    <span className="text-xl font-black tracking-tighter text-blue-900 italic">COCOON <span className="text-gray-400">GUARDIAN V2.0</span></span>
+                    <span className="text-xl font-black tracking-tighter text-blue-900 uppercase">COCOON <span className="text-gray-400">GUARDIAN PORTAL</span></span>
                 </div>
-                <div className="flex items-center gap-4">
+
+                <div className="flex items-center gap-6">
                     {child && (
-                        <div className={`px-4 py-2 rounded-2xl flex items-center gap-3 border transition-all ${activeCall ? "bg-red-50 border-red-100 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "bg-green-50 border-green-100"}`}>
-                            <div className={`w-2.5 h-2.5 rounded-full ${activeCall ? "bg-red-500 animate-pulse" : "bg-green-500"}`}></div>
+                        <div className={`px-5 py-2.5 rounded-2xl flex items-center gap-3 border transition-all duration-500 ${activeCall
+                            ? "bg-red-50 border-red-100 shadow-[0_0_20px_rgba(239,68,68,0.1)]"
+                            : "bg-green-50 border-green-100"}`}>
+                            <div className={`w-2 h-2 rounded-full ${activeCall ? "bg-red-500 animate-pulse" : "bg-green-500"}`}></div>
                             <span className={`text-[10px] font-black uppercase tracking-widest ${activeCall ? "text-red-700" : "text-green-700"}`}>
-                                {activeCall ? "LIVE: IN SESSION" : "STATUS: IDLE"}
+                                {activeCall ? "Live Audio Streaming" : "System Secure"}
                             </span>
                         </div>
                     )}
-                    <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
-                        <span className="text-sm font-bold text-gray-800">{username}</span>
+                    <div className="h-8 w-[1px] bg-gray-200"></div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                            <span className="text-sm font-bold text-gray-800">{username}</span>
+                        </div>
+                        <button onClick={handleLogout} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold transition-all border border-gray-200">
+                            Logout
+                        </button>
                     </div>
-                    <button onClick={handleLogout} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold transition-all">Logout</button>
                 </div>
             </nav>
 
-            <div className="flex-grow bg-gray-100 flex shadow-2xl overflow-hidden antialiased text-gray-900 border-none m-0">
-                {/* Sidebar Navigation */}
-                <aside className="bg-white border-r border-gray-100 w-80 hidden lg:flex flex-col shadow-sm">
-                    <div className="p-6 border-b border-gray-100">
-                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Identity Lookup</h3>
-                        <form onSubmit={handleSearch} className="relative mb-4">
-                            <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                            <input
-                                className={`w-full pl-11 pr-4 py-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 placeholder-gray-400 transition-all font-semibold ${linkedStudentIds.length === 0 ? "bg-gray-50 opacity-50" : "bg-gray-50"}`}
-                                placeholder={linkedStudentIds.length === 0 ? "Link a child first..." : "Enter Linked Student ID"}
-                                value={searchId}
-                                onChange={e => setSearchId(e.target.value)}
-                                disabled={linkedStudentIds.length === 0}
-                            />
-                        </form>
+            <div className="flex-grow flex flex-col overflow-y-auto custom-scrollbar">
 
-                        {/* My Children Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="text-[9px] font-black text-gray-400 uppercase tracking-widest">My Children</h3>
-                                <button onClick={() => setShowLinkModal(true)} className="text-[9px] font-black text-blue-600 uppercase hover:underline">Link New</button>
+                {/* Centered Hub Layout */}
+                <div className="max-w-6xl mx-auto w-full px-8 py-10 space-y-12">
+
+                    {!child ? (
+                        <div className="text-center space-y-8 animate-in fade-in slide-in-from-top-4 duration-700">
+                            <div className="relative inline-block">
+                                <div className="absolute inset-0 bg-blue-600/10 blur-3xl animate-pulse"></div>
+                                <div className="relative w-32 h-32 bg-white border border-gray-100 rounded-[2.5rem] shadow-xl flex items-center justify-center mx-auto">
+                                    <i className="bi bi-shield-shaded text-5xl text-blue-600"></i>
+                                </div>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                                {linkedStudentIds.length === 0 ? (
-                                    <div className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-gray-100 text-[10px] text-gray-400 font-bold text-center italic">
-                                        No children linked yet
+                            <div className="space-y-3">
+                                <h1 className="text-5xl font-black text-gray-800 tracking-tighter">Welcome to <span className="text-blue-600">Cocoon Guardian</span></h1>
+                                <p className="text-gray-500 font-medium max-w-lg mx-auto text-xl leading-relaxed">Select a verified student identity to begin real-time monitoring and safety verification.</p>
+                            </div>
+
+                            {/* Identity Actions Hub */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-lg transition-all text-left space-y-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
+                                            <i className="bi bi-search text-blue-600 text-xl"></i>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black text-gray-800">Access Identity</span>
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Authorized Lookup</span>
+                                        </div>
                                     </div>
-                                ) : (
-                                    linkedStudentIds.map(id => (
+                                    <div className="relative">
+                                        <input
+                                            className="w-full pl-6 pr-24 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="Enter Student ID (e.g. S102)..."
+                                            value={searchId}
+                                            onChange={e => setSearchId(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleSearch(searchId)}
+                                        />
                                         <button
-                                            key={id}
-                                            onClick={() => { setSearchId(id); handleSearch(null); }}
-                                            className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black border border-blue-100 hover:bg-blue-100 transition-all"
+                                            onClick={() => handleSearch(searchId)}
+                                            className="absolute right-2 top-2 bottom-2 px-6 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
                                         >
-                                            {id}
+                                            Lookup
                                         </button>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                        {child ? (
-                            <>
-                                {/* Child Profile Summary */}
-                                <div className="bg-gradient-to-br from-blue-600 to-blue-400 rounded-3xl p-6 text-white shadow-xl shadow-blue-600/20">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center font-black text-xl">
-                                            {child.username.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-black">{child.username}</div>
-                                            <div className="text-[10px] opacity-80 uppercase tracking-widest">{child.studentId}</div>
-                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 mt-4">
-                                        <button onClick={() => setActiveTab("safety")} className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "safety" ? "bg-white text-blue-600" : "bg-white/10 hover:bg-white/20"}`}>Flags: {flaggedMessages.length}</button>
-                                        <button onClick={() => setActiveTab("calls")} className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "calls" ? "bg-white text-blue-600" : "bg-white/10 hover:bg-white/20"}`}>History</button>
-                                    </div>
-                                    <button onClick={() => setActiveTab("report")} className={`w-full mt-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === "report" ? "bg-white text-blue-600 shadow-lg" : "bg-white/20 hover:bg-white/30"}`}>
-                                        <i className="bi bi-graph-up-arrow mr-2"></i> Safety Dashboard
-                                    </button>
+                                    {error && <p className="text-red-600 text-[10px] font-black uppercase tracking-widest px-1"><i className="bi bi-exclamation-circle mr-2"></i>{error}</p>}
                                 </div>
 
-                                {/* Faculty List */}
-                                <div>
-                                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-2">Monitored Channels</h3>
-                                    <div className="space-y-1">
-                                        {faculties.map(faculty => (
+                                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-lg transition-all text-left space-y-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                                            <i className="bi bi-link-45deg text-indigo-600 text-2xl"></i>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black text-gray-800">Verify New Child</span>
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Secure Linkage</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-500 leading-relaxed font-medium">Add a new verified student ID to your monitoring vault to access their safety logs and interactions.</p>
+                                    <button
+                                        onClick={() => setShowLinkModal(true)}
+                                        className="w-full py-4 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-100 transition-all"
+                                    >
+                                        Initiate Verification
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Linked Accounts Grid */}
+                            {linkedStudentIds.length > 0 && (
+                                <div className="space-y-6 max-w-4xl mx-auto pt-8">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Authorized Vault</h3>
+                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg uppercase">{linkedStudentIds.length} Identity Found</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                        {linkedStudents.map(student => (
                                             <button
-                                                key={faculty._id}
-                                                onClick={() => fetchChatHistory(faculty)}
-                                                className={`w-full flex items-center gap-4 px-4 py-4 transition-all rounded-2xl ${selectedFaculty?._id === faculty._id ? "bg-gray-100 border border-gray-200" : "hover:bg-gray-50 text-gray-600"}`}
+                                                key={student.studentId}
+                                                onClick={() => handleSearch(student.studentId)}
+                                                className="group flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-3xl hover:border-blue-500/30 hover:shadow-md transition-all text-left"
                                             >
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${selectedFaculty?._id === faculty._id ? "bg-blue-600 text-white shadow-lg" : "bg-blue-50 text-blue-600"}`}>
-                                                    {faculty.username.charAt(0).toUpperCase()}
+                                                <div className="w-11 h-11 rounded-2xl bg-gray-50 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center text-sm font-black text-gray-400 transition-all uppercase">
+                                                    {student.username.charAt(0)}
                                                 </div>
-                                                <div className="text-left min-w-0">
-                                                    <div className="text-sm font-black text-gray-800 truncate">{faculty.username}</div>
-                                                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Teaching Faculty</div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-gray-800">{student.username}</span>
+                                                    <span className="text-[9px] font-black text-gray-400 uppercase">Verified Student Identity</span>
                                                 </div>
+                                                <i className="bi bi-chevron-right ml-auto text-gray-200 group-hover:text-blue-500 transition-colors"></i>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center opacity-30 mt-20">
-                                <i className="bi bi-shield-lock text-5xl mb-4"></i>
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Restricted View</p>
-                                {linkedStudentIds.length === 0 && (
-                                    <p className="text-[8px] font-bold mt-2 text-red-500 tracking-tighter uppercase">Link a Child to begin</p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </aside>
-
-                {/* Main Content Area */}
-                <main className="flex-grow flex flex-col relative bg-gray-50 overflow-hidden">
-                    {/* Link New Child Modal */}
-                    {showLinkModal && (
-                        <div className="absolute inset-0 z-[100] bg-gray-900/40 backdrop-blur-md flex items-center justify-center p-6">
-                            <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
-                                <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase">Link New Child</h2>
-                                    <button onClick={() => { setShowLinkModal(false); setLinkMessage(""); }} className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all">
-                                        <i className="bi bi-x-lg text-gray-400"></i>
-                                    </button>
-                                </div>
-                                <form onSubmit={handleLinkChild} className="space-y-6">
-                                    <div>
-                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Student Identification Number</label>
-                                        <input
-                                            className="w-full px-6 py-4 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-semibold border border-gray-100"
-                                            placeholder="e.g. A9238"
-                                            value={linkInputId}
-                                            onChange={e => setLinkInputId(e.target.value)}
-                                        />
-                                    </div>
-                                    {linkMessage && (
-                                        <div className={`p-4 rounded-xl text-[10px] font-black uppercase text-center ${linkMessage.includes("success") ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
-                                            {linkMessage}
-                                        </div>
-                                    )}
-                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-600/20 uppercase tracking-widest text-[10px]">
-                                        Verify & Link Identity
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {!child ? (
-                        <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-gray-800">
-                            {error && (
-                                <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] font-black text-red-600 uppercase tracking-widest animate-pulse">
-                                    <i className="bi bi-exclamation-triangle-fill mr-2"></i> {error}
-                                </div>
                             )}
-                            <div className="w-48 h-48 bg-white rounded-[4rem] shadow-2xl flex items-center justify-center mb-12 border border-gray-100 group hover:scale-105 transition-all relative">
-                                <i className="bi bi-shield-fill-check text-8xl text-blue-600"></i>
-                                {linkedStudentIds.length === 0 && (
-                                    <div className="absolute -bottom-4 bg-gray-900 text-white px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest">Setup Required</div>
-                                )}
-                            </div>
-                            <h1 className="text-6xl font-black mb-6 tracking-tighter uppercase leading-[0.9]">Universal <br /><span className="text-blue-600 tracking-[-0.05em]">Safety Portal</span></h1>
-                            <p className="text-gray-400 max-w-sm text-lg font-medium leading-relaxed italic border-l-4 border-blue-600 pl-6">
-                                {linkedStudentIds.length === 0
-                                    ? "Welcome. Please use the 'Link New' button in the sidebar to add your child's student ID and begin monitoring."
-                                    : "Select a linked child from your dashboard to begin monitoring their interactions."}
-                            </p>
                         </div>
                     ) : (
-                        <div className="flex-grow flex flex-col h-full overflow-hidden">
-                            {/* Dashboard Header Container */}
-                            <header className="px-10 py-6 bg-white border-b border-gray-100 flex items-center justify-between shadow-sm z-[20]">
-                                <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl">
-                                    <button onClick={() => setActiveTab("chat")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "chat" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}>Logs</button>
-                                    <button onClick={() => setActiveTab("safety")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "safety" ? "bg-white text-red-600 shadow-sm" : "text-gray-400 hover:text-red-400"}`}>Safety Flags {flaggedMessages.length > 0 && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>}</button>
-                                    <button onClick={() => setActiveTab("calls")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "calls" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"}`}>Call History</button>
-                                    <button onClick={() => setActiveTab("report")} className={`px-4 lg:px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "report" ? "bg-white text-green-600 shadow-sm" : "text-gray-400 hover:text-green-600"}`}>Summary</button>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    {(activeTab === "chat" && selectedFaculty) && (
-                                        <div className="relative">
-                                            <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                                            <input
-                                                className="pl-10 pr-4 py-2.5 bg-gray-50 rounded-xl text-[10px] font-bold focus:outline-none border border-transparent focus:border-blue-100 w-64"
-                                                placeholder="Search thread keywords..."
-                                                value={chatSearch}
-                                                onChange={e => setChatSearch(e.target.value)}
-                                            />
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+                            {/* Student Control Bar */}
+                            <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex items-center justify-between">
+                                <div className="flex items-center gap-5">
+                                    <button onClick={() => setChild(null)} className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-gray-100">
+                                        <i className="bi bi-arrow-left"></i>
+                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-tr from-blue-600 to-blue-400 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-600/30">
+                                            {child.username.charAt(0).toUpperCase()}
                                         </div>
-                                    )}
-                                </div>
-                            </header>
-
-                            {/* Dynamic Content Views */}
-                            <div className="flex-grow overflow-hidden relative">
-
-                                {/* LIVE MONITOR Marquee (Visible everywhere if active) */}
-                                {activeCall && (
-                                    <div className="absolute top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md z-50 py-4 px-10 border-b border-white/10 shadow-xl overflow-hidden animate-in slide-in-from-top duration-500">
-                                        <div className="max-w-4xl mx-auto flex items-center gap-6">
-                                            <div className="flex-shrink-0 flex items-center gap-3">
-                                                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
-                                                <span className="text-[10px] font-black text-white uppercase tracking-widest whitespace-nowrap">Live Audio Feed</span>
+                                        <div>
+                                            <h2 className="text-2xl font-black text-gray-800">{child.username}</h2>
+                                            <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                                                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                                                SECURE MONITORING ACTIVE: {activeCall ? "STREAMING" : "IDLE"}
                                             </div>
-                                            <div className="flex-grow flex gap-4 overflow-hidden mask-fade-right">
-                                                {liveCaptions.length === 0 ? (
-                                                    <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest italic animate-pulse">Establishing audio synchronization...</span>
-                                                ) : (
-                                                    <div className="flex gap-4 animate-marquee-slow whitespace-nowrap">
-                                                        {liveCaptions.map((cap, i) => (
-                                                            <div key={i} className="flex items-center gap-2">
-                                                                <span className="text-blue-400 font-black text-[10px]">{cap.username}:</span>
-                                                                <span className="text-white font-medium text-[10px]">{cap.text}</span>
-                                                                <span className="px-1.5 py-0.5 bg-white/10 rounded text-[8px] font-black text-white/50">{cap.language}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <button onClick={() => setActiveTab("calls")} className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg shadow-blue-600/30">View Analysis</button>
                                         </div>
                                     </div>
-                                )}
+                                </div>
 
-                                {/* 1. CHAT LOGS VIEW */}
+                                <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                                    {[
+                                        { id: "chat", icon: "bi-chat-heart", label: "Logs" },
+                                        { id: "safety", icon: "bi-shield-exclamation", label: "Flags" },
+                                        { id: "calls", icon: "bi-earpods", label: "History" },
+                                        { id: "report", icon: "bi-clipboard-pulse", label: "Insight" }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.id
+                                                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                                                : "text-gray-400 hover:text-gray-600"}`}
+                                        >
+                                            <i className={tab.icon}></i>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* LIVE MONITORING BAR */}
+                            {activeCall && (
+                                <div className="bg-red-50 p-6 rounded-[2rem] border border-red-100 flex items-center gap-8 shadow-sm">
+                                    <div className="flex-shrink-0 flex items-center gap-3 bg-red-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-red-600/30">
+                                        <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                                        Listening
+                                    </div>
+                                    <div className="flex-grow overflow-hidden relative h-8 flex items-center">
+                                        <div className={`flex gap-6 whitespace-nowrap ${liveCaptions.length > 0 ? "animate-marquee-slow" : ""}`}>
+                                            {liveCaptions.length === 0 ? (
+                                                <span className="text-red-400 text-[10px] font-black uppercase tracking-widest italic">Scanning audio frequencies...</span>
+                                            ) : (
+                                                liveCaptions.map((cap, i) => (
+                                                    <div key={i} className="flex items-center gap-3 bg-white/50 px-4 py-2 rounded-lg border border-red-100">
+                                                        <span className="text-red-700 font-black text-xs">"{cap.text}"</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setActiveTab("calls")} className="text-[10px] font-black uppercase text-red-600 border border-red-200 px-5 py-2 rounded-xl hover:bg-red-100 transition-all">Inspect View</button>
+                                </div>
+                            )}
+
+                            {/* MAIN DYNAMIC CONTENT */}
+                            <div className="space-y-10 min-h-[600px]">
+
                                 {activeTab === "chat" && (
-                                    <div className={`h-full flex flex-col ${activeCall ? "pt-20" : ""}`}>
-                                        {!selectedFaculty ? (
-                                            <div className="flex-grow flex flex-col items-center justify-center p-12 text-center opacity-40">
-                                                <i className="bi bi-chat-left-dots text-5xl mb-4"></i>
-                                                <p className="font-black uppercase tracking-[0.2em] text-xs">Select Faculty to view conversation archive</p>
-                                            </div>
-                                        ) : (
-                                            <div className="flex-grow overflow-y-auto p-10 bg-gray-50 custom-scrollbar relative h-full">
-                                                <div className="space-y-12 max-w-4xl mx-auto pb-20">
-                                                    {Object.entries(groupedMessages).map(([date, msgs]) => (
-                                                        <div key={date} className="relative">
-                                                            <div className="sticky top-0 z-10 flex justify-center mb-10">
-                                                                <span className="px-8 py-2.5 bg-white rounded-2xl text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] shadow-lg border border-gray-100 flex items-center gap-3">
-                                                                    <i className="bi bi-calendar3 text-blue-400"></i> {date}
-                                                                </span>
-                                                            </div>
-                                                            <div className="space-y-8">
-                                                                {msgs.map((msg, idx) => (
-                                                                    <div key={idx} className={`flex ${msg.sender === child._id ? "justify-end" : "justify-start"}`}>
-                                                                        <div className={`max-w-[85%] flex flex-col ${msg.sender === child._id ? "items-end" : "items-start"}`}>
-                                                                            <div className={`px-8 py-5 rounded-[2.5rem] shadow-sm text-sm font-medium leading-relaxed group relative ${msg.sender === child._id
-                                                                                ? "bg-blue-600 text-white rounded-tr-none shadow-blue-200"
-                                                                                : "bg-white text-gray-800 rounded-tl-none border border-gray-100 shadow-gray-200"
-                                                                                }`}>
-                                                                                {msg.text}
-                                                                                {msg.flagged && (
-                                                                                    <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-red-500 border-4 border-white flex items-center justify-center text-white" title={msg.flagReason}>
-                                                                                        <i className="bi bi-exclamation-triangle-fill text-[10px]"></i>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className={`text-[9px] font-black uppercase tracking-widest mt-3 opacity-40 flex items-center gap-3 ${msg.sender === child._id ? "flex-row-reverse" : "flex-row"}`}>
-                                                                                <span className="text-blue-600 font-black">{msg.sender === child._id ? child.username : selectedFaculty.username}</span>
-                                                                                <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                                                                <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* 2. SAFETY FLAGS VIEW */}
-                                {activeTab === "safety" && (
-                                    <div className={`h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar ${activeCall ? "pt-32" : ""}`}>
-                                        <div className="max-w-4xl mx-auto">
-                                            <div className="flex items-center justify-between mb-10">
-                                                <div>
-                                                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-4">
-                                                        <span className="bg-red-100 text-red-600 p-2.5 rounded-2xl"><i className="bi bi-flag-fill"></i></span>
-                                                        Safety Flags
-                                                    </h2>
-                                                </div>
-                                                <div className="bg-red-600 text-white px-8 py-4 rounded-3xl shadow-xl shadow-red-600/20 font-black text-xs uppercase tracking-widest">
-                                                    Total flags: {flaggedMessages.length}
-                                                </div>
-                                            </div>
-                                            {flaggedMessages.map((msg, i) => (
-                                                <div key={i} className="bg-white rounded-[2.5rem] p-8 border border-red-100 shadow-sm mb-6">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl">{msg.flagReason}</span>
-                                                        <span className="text-[10px] text-gray-400 font-bold">{new Date(msg.timestamp).toLocaleString()}</span>
+                                    <div className="space-y-4">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Faculty Members</h3>
+                                        <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar no-scrollbar">
+                                            {faculties.map(f => (
+                                                <button
+                                                    key={f._id}
+                                                    onClick={() => fetchChatHistory(f)}
+                                                    className={`flex-shrink-0 flex items-center gap-4 p-4 rounded-3xl border transition-all ${selectedFaculty?._id === f._id
+                                                        ? "bg-white border-blue-500/30 shadow-md ring-4 ring-blue-600/5 text-blue-600"
+                                                        : "bg-white/50 border-gray-100 hover:bg-white text-gray-500"}`}
+                                                >
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm ${selectedFaculty?._id === f._id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "bg-blue-100 text-blue-600"}`}>
+                                                        {f.username.charAt(0).toUpperCase()}
                                                     </div>
-                                                    <div className="text-gray-800 font-medium italic">"{msg.text}"</div>
-                                                </div>
+                                                    <div className="flex flex-col text-left pr-4">
+                                                        <span className="text-sm font-black text-gray-800">{f.username}</span>
+                                                        <span className={`text-[9px] font-black uppercase tracking-tight ${selectedFaculty?._id === f._id ? "text-blue-600" : "text-gray-400"}`}>Connected Faculty</span>
+                                                    </div>
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* 3. CALL HISTORY VIEW */}
-                                {activeTab === "calls" && (
-                                    <div className={`h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar ${activeCall ? "pt-32" : ""}`}>
-                                        <div className="max-w-4xl mx-auto">
-                                            <h2 className="text-3xl font-black text-gray-800 mb-10">Interaction Logs</h2>
-
-                                            {/* Live Transcription Feed for Calls Tab */}
-                                            {activeCall && (
-                                                <div className="bg-white rounded-[3rem] p-8 border border-blue-100 shadow-xl mb-12 animate-in fade-in zoom-in duration-500">
-                                                    <div className="flex items-center justify-between mb-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
-                                                            <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Real-time Session Transcription</h3>
+                                {activeTab === "chat" && (
+                                    <div className="space-y-8">
+                                        <div className="h-[1px] bg-gray-100 w-full"></div>
+                                        <div className="space-y-4">
+                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Communication Logs</h3>
+                                            <div className="max-w-4xl mx-auto w-full">
+                                                {!selectedFaculty ? (
+                                                    <div className="h-96 flex flex-col items-center justify-center text-center opacity-40 bg-white rounded-[2.5rem] border border-dashed border-gray-200">
+                                                        <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                                            <i className="bi bi-chat-dots-fill text-3xl text-gray-300"></i>
                                                         </div>
-                                                        <span className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Active Link</span>
+                                                        <p className="font-black uppercase tracking-widest text-[10px]">Digital Archive Vault. Select a channel to audit.</p>
                                                     </div>
-                                                    <div className="bg-gray-50 rounded-2xl p-6 min-h-[200px] border border-gray-100 overflow-y-auto max-h-64 custom-scrollbar">
-                                                        {liveCaptions.length === 0 ? (
-                                                            <div className="h-full flex flex-col items-center justify-center text-center py-10">
-                                                                <i className="bi bi-mic-fill text-gray-200 text-4xl mb-4"></i>
-                                                                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Monitoring silent audio streams...</p>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="space-y-4">
-                                                                {liveCaptions.map((cap, i) => (
-                                                                    <div key={i} className="flex flex-col gap-1">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{cap.username}</span>
-                                                                            <span className="text-[8px] font-black text-gray-400 border border-gray-200 px-2 py-0.5 rounded uppercase">{cap.language}</span>
+                                                ) : (
+                                                    <div className="space-y-16">
+                                                        {Object.entries(groupedMessages).map(([date, msgs]) => (
+                                                            <div key={date} className="space-y-10">
+                                                                <div className="flex items-center gap-6">
+                                                                    <div className="h-[1px] flex-grow bg-gray-200"></div>
+                                                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">{date}</span>
+                                                                    <div className="h-[1px] flex-grow bg-gray-200"></div>
+                                                                </div>
+                                                                <div className="space-y-8 flex flex-col">
+                                                                    {msgs.map((msg, i) => (
+                                                                        <div key={i} className={`flex ${msg.sender === child._id ? "justify-end" : "justify-start"}`}>
+                                                                            <div className={`max-w-[70%] space-y-2 flex flex-col`}>
+                                                                                <div className={`px-5 py-3 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed ${msg.sender === child._id
+                                                                                    ? "bg-blue-600 text-white rounded-tr-none self-end"
+                                                                                    : "bg-white text-gray-800 rounded-tl-none border border-gray-100 self-start"}`}>
+                                                                                    {msg.text}
+                                                                                </div>
+                                                                                <div className={`text-[9px] font-black uppercase tracking-tighter opacity-40 ${msg.sender === child._id ? "self-end mr-1" : "self-start ml-1"}`}>
+                                                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                    {msg.flagged && <span className="text-red-600 ml-2"><i className="bi bi-shield-fill-exclamation mr-1"></i> FLAG DETECTED</span>}
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
-                                                                        <p className="text-sm text-gray-800 font-medium leading-relaxed">{cap.text}</p>
-                                                                    </div>
-                                                                ))}
+                                                                    ))}
+                                                                </div>
                                                             </div>
-                                                        )}
+                                                        ))}
+                                                        <div ref={chatEndRef}></div>
                                                     </div>
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-4 pb-20">
-                                                {callHistory.map((call, i) => (
-                                                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 flex items-center justify-between">
-                                                        <div className="flex items-center gap-6">
-                                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl ${call.type === "video" ? "bg-blue-50 text-blue-600" : "bg-green-50 text-green-600"}`}>
-                                                                <i className={`bi ${call.type === "video" ? "bi-camera-video-fill" : "bi-telephone-fill"}`}></i>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-sm font-black text-gray-800 uppercase tracking-widest">{call.type} Call</div>
-                                                                <div className="text-[10px] text-gray-400 font-bold mt-1">Duration: {formatDuration(call.duration || 0)}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">{new Date(call.createdAt).toLocaleDateString()}</div>
-                                                            <div className="text-[9px] text-gray-400 font-black uppercase tracking-tighter mt-1">{new Date(call.createdAt).toLocaleTimeString()}</div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                )}
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* 4. SUMMARY VIEW */}
-                                {activeTab === "report" && (
-                                    <div className="h-full overflow-y-auto p-12 bg-gray-50 custom-scrollbar">
-                                        <div className="max-w-4xl mx-auto">
-                                            <div className="bg-gray-900 rounded-[3.5rem] p-12 text-white relative overflow-hidden shadow-2xl mb-12">
-                                                <div className="relative z-10">
-                                                    <div className="inline-block px-6 py-2 bg-blue-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] mb-8">Weekly Safety Summary</div>
-                                                    <h2 className="text-6xl font-black mb-6 tracking-tighter leading-[0.9]">Overall Status:<br />
-                                                        <span className={flaggedMessages.length > 0 ? "text-red-500" : "text-green-500"}>
-                                                            {flaggedMessages.length > 0 ? "Attention Required" : "Secure System"}
-                                                        </span>
-                                                    </h2>
+                                {activeTab === "safety" && (
+                                    <div className="space-y-8">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Safety Verification</h3>
+                                        <div className="max-w-4xl mx-auto w-full space-y-6">
+                                            <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100 flex items-center justify-between shadow-sm">
+                                                <div className="flex flex-col gap-1">
+                                                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Safety Breaches</h2>
+                                                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">Autonomous Security Analysis</p>
+                                                </div>
+                                                <div className="bg-red-600 text-white px-6 py-2 rounded-xl font-black text-xs uppercase shadow-lg shadow-red-600/20">
+                                                    {flaggedMessages.length} Incident{flaggedMessages.length !== 1 ? 's' : ''} Identified
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                                <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <div className="text-5xl font-black text-gray-800 mb-2">{safetySummary?.totalMessages}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Msgs</div>
+                                            <div className="grid grid-cols-1 gap-4">
+                                                {flaggedMessages.length === 0 ? (
+                                                    <div className="p-20 text-center opacity-10 flex flex-col items-center bg-white rounded-[3rem] border border-gray-100">
+                                                        <i className="bi bi-shield-check text-9xl"></i>
+                                                        <p className="text-xl font-black uppercase tracking-[0.3em] mt-8">System Secured</p>
+                                                    </div>
+                                                ) : (
+                                                    flaggedMessages.map((msg, i) => (
+                                                        <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:border-red-500/20 transition-all group">
+                                                            <div className="flex items-center justify-between mb-6">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center">
+                                                                        <i className="bi bi-bug-fill text-red-600 text-xl"></i>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-black text-gray-800 uppercase tracking-tight">{msg.flagReason}</span>
+                                                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">{new Date(msg.timestamp).toLocaleString()}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-gray-50 p-6 rounded-2xl border-l-[6px] border-red-600">
+                                                                <p className="text-base font-semibold text-gray-700 italic leading-relaxed">"{msg.text}"</p>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === "calls" && (
+                                    <div className="space-y-8">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Interaction History</h3>
+                                        <div className="max-w-4xl mx-auto w-full space-y-10">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                {callHistory.length === 0 ? (
+                                                    <div className="col-span-full p-20 text-center opacity-40 bg-white rounded-[3rem] border border-gray-100">
+                                                        <i className="bi bi-broadcast text-7xl mb-6 block text-gray-200"></i>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">No previous sessions found</p>
+                                                    </div>
+                                                ) : (
+                                                    callHistory.map((call, i) => (
+                                                        <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-all">
+                                                                <i className={`bi ${call.type === "video" ? "bi-camera-video" : "bi-mic"} text-6xl`}></i>
+                                                            </div>
+                                                            <div className="space-y-6">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shadow-lg ${call.type === "video" ? "bg-blue-600 text-white shadow-blue-600/20" : "bg-green-600 text-white shadow-green-600/20"}`}>
+                                                                        <i className={`bi ${call.type === "video" ? "bi-play-circle-fill" : "bi-soundwave"}`}></i>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-black text-gray-800 uppercase tracking-tight">{call.type} Call Session</span>
+                                                                        <span className="text-[10px] font-black text-gray-400 uppercase">Duration: {formatDuration(call.duration || 0)}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-gray-100 px-5 py-3 rounded-xl inline-block text-[10px] font-black text-gray-500 uppercase tracking-widest border border-gray-200">
+                                                                    {new Date(call.createdAt).toLocaleString()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === "report" && (
+                                    <div className="space-y-8">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Executive Summary</h3>
+                                        <div className="max-w-5xl mx-auto w-full space-y-12">
+                                            <div className="bg-white p-12 rounded-[3.5rem] border border-gray-100 shadow-2xl relative overflow-hidden text-center space-y-8">
+                                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600"></div>
+                                                <div className="w-24 h-24 bg-blue-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                                    <i className="bi bi-graph-up-arrow text-3xl text-blue-600"></i>
                                                 </div>
-                                                <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <div className="text-5xl font-black text-gray-800 mb-2">{safetySummary?.totalCalls}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Calls</div>
-                                                </div>
-                                                <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm text-center">
-                                                    <div className="text-5xl font-black text-gray-800 mb-2">{flaggedMessages.length}</div>
-                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Flags</div>
+                                                <h2 className="text-4xl font-black text-gray-800 uppercase tracking-tighter">System Health Dashboard</h2>
+                                                <p className="text-gray-500 max-w-lg mx-auto font-medium text-lg leading-relaxed">Verified system audit of all communication channels including live audio stream, archived logs, and flagged safety breaches.</p>
+
+                                                <div className="flex items-center justify-center gap-20 pt-10">
+                                                    {[
+                                                        { label: "Archived Msgs", value: safetySummary?.totalMessages || 0, color: "blue" },
+                                                        { label: "Call Sessions", value: safetySummary?.totalCalls || 0, color: "blue" },
+                                                        { label: "Safety Flags", value: flaggedMessages.length, color: "red" }
+                                                    ].map((s, i) => (
+                                                        <div key={i} className="flex flex-col items-center gap-4">
+                                                            <span className={`text-6xl font-black tracking-tighter ${s.color === "red" && s.value > 0 ? "text-red-600" : "text-gray-800"}`}>{s.value}</span>
+                                                            <span className={`text-[11px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-lg ${s.color === "red" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"}`}>{s.label}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
@@ -600,24 +602,75 @@ function Parent() {
                             </div>
                         </div>
                     )}
-                </main>
+                </div>
             </div>
 
-            {/* Global Style for Marquee */}
+            {/* Link Modal - Aligned with Student/Faculty Modals */}
+            {showLinkModal && (
+                <div className="fixed inset-0 z-[100] bg-blue-900/20 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-white p-10 rounded-[3rem] border border-white w-full max-w-lg text-center shadow-[0_40px_100px_rgba(30,58,138,0.3)] transform scale-100 animate-in zoom-in-95 duration-300">
+                        <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-[2rem] mx-auto mb-8 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-600/40">
+                            <i className="bi bi-link-45deg"></i>
+                        </div>
+                        <h2 className="text-3xl font-black text-gray-800 mb-2 uppercase tracking-tighter">Link Identity</h2>
+                        <p className="text-gray-400 font-black uppercase tracking-[0.2em] text-[10px] mb-10">Encrypted Guardian Validation</p>
+
+                        <form onSubmit={handleLinkChild} className="space-y-8">
+                            <div className="space-y-4">
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left ml-2">Student Identification ID</label>
+                                <input
+                                    className="w-full px-8 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm font-black text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                    placeholder="e.g. S102"
+                                    value={linkInputId}
+                                    onChange={e => setLinkInputId(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            {linkMessage && (
+                                <div className={`p-5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center animate-in slide-in-from-bottom-2 ${linkMessage.includes("success") ? "bg-green-50 text-green-600 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
+                                    {linkMessage}
+                                </div>
+                            )}
+                            <div className="flex gap-6">
+                                <button type="submit" className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95 uppercase tracking-widest text-xs">Authorize Identity</button>
+                                <button type="button" onClick={() => setShowLinkModal(false)} className="px-8 py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95 uppercase tracking-widest text-xs">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             <style jsx>{`
                 @keyframes marquee-slow {
-                    0% { transform: translateX(0); }
-                    100% { transform: translateX(-50%); }
+                    0% { transform: translateX(50%); }
+                    100% { transform: translateX(-150%); }
                 }
                 .animate-marquee-slow {
                     display: inline-flex;
                     animation: marquee-slow 30s linear infinite;
                 }
-                .animate-marquee-slow:hover {
-                    animation-play-state: paused;
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
                 }
-                .mask-fade-right {
-                    mask-image: linear-gradient(to right, black 85%, transparent 100%);
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: rgba(0, 0, 0, 0.05);
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: rgba(0, 0, 0, 0.1);
+                }
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                .shadow-3xl {
+                    box-shadow: 0 40px 100px rgba(0,0,0,0.1);
                 }
             `}</style>
         </div>
