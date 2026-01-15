@@ -221,6 +221,8 @@ async function transcribeWithWhisper(buffer, mimeType) {
   }
 }
 
+const SAFETY_KEYWORDS = ["bully", "hate", "stupid", "idiot", "abuse", "drug", "kill", "porn", "sexy", "bad", "fuck", "shit", "bitch", "die", "suicide", "naked", "hell", "dumb"];
+
 io.on("connection", (socket) => {
   console.log("🟢 Socket connected:", socket.id);
 
@@ -233,15 +235,28 @@ io.on("connection", (socket) => {
   // 🔹 Messaging events
   socket.on("send-message", async ({ senderId, senderModel, receiverId, receiverModel, text }) => {
     try {
+      const lowercaseText = text.toLowerCase();
+      let isFlagged = false;
+      let reason = "";
+
+      SAFETY_KEYWORDS.forEach(word => {
+        if (lowercaseText.includes(word)) {
+          isFlagged = true;
+          reason = `Potential concern detected: "${word}"`;
+        }
+      });
+
       const newMessage = new Message({
         sender: senderId,
         senderModel,
         receiver: receiverId,
         receiverModel,
-        text
+        text,
+        flagged: isFlagged,
+        flagReason: reason
       });
       const savedMessage = await newMessage.save();
-      console.log(`💾 Message saved to database: ${senderModel} (${senderId}) -> ${receiverModel} (${receiverId})`);
+      console.log(`💾 Message saved (Flagged: ${isFlagged}): ${senderModel} (${senderId}) -> ${receiverModel} (${receiverId})`);
 
       // Emit to receiver if online
       const receiver = onlineUsers[receiverId];
@@ -279,8 +294,11 @@ io.on("connection", (socket) => {
               registerNumber,
               roomName,
               participants: [caller.userName, callee.userName],
+              participantIds: [fromUserId, toUserId],
+              type: type || "video",
+              status: "active"
             });
-            console.log(`#️⃣ Call ${roomName} -> register ${registerNumber}`);
+            console.log(`#️⃣ Call ${roomName} registered (${type || "video"})`);
           }
         } catch (e) {
           console.error("❌ Failed to create call register:", e);
@@ -293,6 +311,24 @@ io.on("connection", (socket) => {
         type: type || "video", // Forward the call type
       });
       console.log(`📞 ${caller.userName} is calling ${callee.userName} (${type || "video"})`);
+    }
+  });
+
+  socket.on("end-call", async ({ roomName }) => {
+    try {
+      const call = await CallModel.findOne({ roomName, status: "active" });
+      if (call) {
+        const endTime = new Date();
+        const durationSeconds = Math.floor((endTime - call.createdAt) / 1000);
+        call.status = "completed";
+        call.endedAt = endTime;
+        call.duration = durationSeconds;
+        await call.save();
+        console.log(`🏁 Call ${roomName} ended. Duration: ${durationSeconds}s`);
+      }
+      io.to(roomName).emit("call-ended", { roomName });
+    } catch (err) {
+      console.error("❌ Error ending call:", err);
     }
   });
 

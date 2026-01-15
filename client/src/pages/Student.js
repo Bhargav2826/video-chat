@@ -335,6 +335,8 @@ function Student() {
     const endCall = () => {
         stopAudioCapture();
         if (roomRef.current) {
+            const roomName = roomRef.current.name;
+            socket.emit("end-call", { roomName });
             roomRef.current.disconnect();
             roomRef.current = null;
         }
@@ -455,9 +457,6 @@ function Student() {
                                     </button>
                                     <button onClick={() => initiateCall("video")} disabled={isInCall} className="w-12 h-12 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center transition-all transform active:scale-95 disabled:opacity-50" title="Start Video Call">
                                         <i className="bi bi-camera-video-fill text-xl"></i>
-                                    </button>
-                                    <button onClick={() => initiateCall("video")} disabled={isInCall} className="px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl shadow-blue-600/30 transform active:scale-95 disabled:opacity-50">
-                                        <i className="bi bi-shield-check"></i> START CALL
                                     </button>
                                 </div>
                             </header>
