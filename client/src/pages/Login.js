@@ -15,6 +15,7 @@ function Login() {
       localStorage.setItem("username", res.data.username);
       localStorage.setItem("role", res.data.role);
       if (res.data.studentId) localStorage.setItem("studentId", res.data.studentId);
+      if (res.data.linkedStudentIds) localStorage.setItem("linkedStudentIds", JSON.stringify(res.data.linkedStudentIds));
 
       // Redirect based on role
       if (res.data.role === "faculty") {

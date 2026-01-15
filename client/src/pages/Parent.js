@@ -9,6 +9,7 @@ const socket = io("/", { autoConnect: true });
 function Parent() {
     const navigate = useNavigate();
     const username = localStorage.getItem("username") || "Guest";
+    const userId = localStorage.getItem("userId");
     const role = localStorage.getItem("role");
 
     // Monitoring State
@@ -27,11 +28,19 @@ function Parent() {
     const [activeTab, setActiveTab] = useState("chat"); // chat, safety, calls, report
     const [chatSearch, setChatSearch] = useState("");
 
+    // Child Linking State
+    const [linkedStudentIds, setLinkedStudentIds] = useState([]);
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [linkInputId, setLinkInputId] = useState("");
+    const [linkMessage, setLinkMessage] = useState("");
+
     useEffect(() => {
         if (role !== "parent") {
             navigate("/login");
             return;
         }
+        const savedIds = localStorage.getItem("linkedStudentIds");
+        if (savedIds) setLinkedStudentIds(JSON.parse(savedIds));
     }, [role, navigate]);
 
     // Handle Socket Transcriptions
@@ -55,7 +64,9 @@ function Parent() {
         if (child) {
             const checkStatus = async () => {
                 try {
-                    const res = await axios.get(`/api/messages/active-call/${child._id}`);
+                    const res = await axios.get(`/api/messages/active-call/${child._id}`, {
+                        headers: { "x-parent-id": userId }
+                    });
                     const newActiveCall = res.data.active ? res.data.call : null;
                     setActiveCall(newActiveCall);
                     if (!newActiveCall) setLiveCaptions([]);
@@ -69,9 +80,40 @@ function Parent() {
         return () => clearInterval(interval);
     }, [child]);
 
+    const handleLinkChild = async (e) => {
+        if (e) e.preventDefault();
+        setLinkMessage("");
+        if (!linkInputId.trim()) return;
+
+        try {
+            const res = await axios.post("/api/auth/link-child", {
+                parentId: userId,
+                studentId: linkInputId.trim()
+            });
+            const newIds = res.data.linkedStudentIds;
+            setLinkedStudentIds(newIds);
+            localStorage.setItem("linkedStudentIds", JSON.stringify(newIds));
+            setLinkMessage("Child linked successfully!");
+            setLinkInputId("");
+            setTimeout(() => {
+                setShowLinkModal(false);
+                setLinkMessage("");
+            }, 1500);
+        } catch (err) {
+            setLinkMessage(err.response?.data?.error || "Linking failed.");
+        }
+    };
+
     const handleSearch = async (e) => {
         if (e) e.preventDefault();
-        if (!searchId.trim()) return;
+        const tid = searchId.trim();
+        if (!tid) return;
+
+        // Security Check: Role-Locked Access
+        if (!linkedStudentIds.includes(tid)) {
+            setError("Unauthorized access. You can only monitor your linked children.");
+            return;
+        }
 
         setIsLoading(true);
         setError("");
@@ -82,16 +124,19 @@ function Parent() {
         setLiveCaptions([]);
 
         try {
-            const studentRes = await axios.get(`/api/messages/child/${searchId.trim()}`);
+            const studentRes = await axios.get(`/api/messages/child/${tid}`, {
+                headers: { "x-parent-id": userId }
+            });
             const studentData = studentRes.data;
             setChild(studentData);
 
-            // Fetch initial monitoring data
+            // Fetch initial monitoring data with parent identity header for verification
+            const config = { headers: { "x-parent-id": userId } };
             const [interactions, flagged, calls, summary] = await Promise.all([
-                axios.get(`/api/messages/interactions/${studentData._id}`),
-                axios.get(`/api/messages/flagged/${studentData._id}`),
-                axios.get(`/api/messages/calls/${studentData._id}`),
-                axios.get(`/api/messages/summary/${studentData._id}`)
+                axios.get(`/api/messages/interactions/${studentData._id}`, config),
+                axios.get(`/api/messages/flagged/${studentData._id}`, config),
+                axios.get(`/api/messages/calls/${studentData._id}`, config),
+                axios.get(`/api/messages/summary/${studentData._id}`, config)
             ]);
 
             setFaculties(interactions.data);
@@ -111,7 +156,9 @@ function Parent() {
         setIsLoading(true);
         setSelectedFaculty(faculty);
         try {
-            const res = await axios.get(`/api/messages/history/${child._id}/${faculty._id}`);
+            const res = await axios.get(`/api/messages/history/${child._id}/${faculty._id}`, {
+                headers: { "x-parent-id": userId }
+            });
             setMessages(res.data);
             setActiveTab("chat");
         } catch (err) {
@@ -174,15 +221,41 @@ function Parent() {
                 <aside className="bg-white border-r border-gray-100 w-80 hidden lg:flex flex-col shadow-sm">
                     <div className="p-6 border-b border-gray-100">
                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Identity Lookup</h3>
-                        <form onSubmit={handleSearch} className="relative">
+                        <form onSubmit={handleSearch} className="relative mb-4">
                             <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                             <input
-                                className="w-full pl-11 pr-4 py-4 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 placeholder-gray-400 transition-all font-semibold"
-                                placeholder="Student ID (e.g. A2934)"
+                                className={`w-full pl-11 pr-4 py-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 placeholder-gray-400 transition-all font-semibold ${linkedStudentIds.length === 0 ? "bg-gray-50 opacity-50" : "bg-gray-50"}`}
+                                placeholder={linkedStudentIds.length === 0 ? "Link a child first..." : "Enter Linked Student ID"}
                                 value={searchId}
                                 onChange={e => setSearchId(e.target.value)}
+                                disabled={linkedStudentIds.length === 0}
                             />
                         </form>
+
+                        {/* My Children Section */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between px-2">
+                                <h3 className="text-[9px] font-black text-gray-400 uppercase tracking-widest">My Children</h3>
+                                <button onClick={() => setShowLinkModal(true)} className="text-[9px] font-black text-blue-600 uppercase hover:underline">Link New</button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {linkedStudentIds.length === 0 ? (
+                                    <div className="w-full py-3 px-4 rounded-xl border-2 border-dashed border-gray-100 text-[10px] text-gray-400 font-bold text-center italic">
+                                        No children linked yet
+                                    </div>
+                                ) : (
+                                    linkedStudentIds.map(id => (
+                                        <button
+                                            key={id}
+                                            onClick={() => { setSearchId(id); handleSearch(null); }}
+                                            className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black border border-blue-100 hover:bg-blue-100 transition-all"
+                                        >
+                                            {id}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex-grow overflow-y-auto p-4 space-y-4">
@@ -234,6 +307,9 @@ function Parent() {
                             <div className="h-full flex flex-col items-center justify-center text-center opacity-30 mt-20">
                                 <i className="bi bi-shield-lock text-5xl mb-4"></i>
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em]">Restricted View</p>
+                                {linkedStudentIds.length === 0 && (
+                                    <p className="text-[8px] font-bold mt-2 text-red-500 tracking-tighter uppercase">Link a Child to begin</p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -241,13 +317,58 @@ function Parent() {
 
                 {/* Main Content Area */}
                 <main className="flex-grow flex flex-col relative bg-gray-50 overflow-hidden">
+                    {/* Link New Child Modal */}
+                    {showLinkModal && (
+                        <div className="absolute inset-0 z-[100] bg-gray-900/40 backdrop-blur-md flex items-center justify-center p-6">
+                            <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase">Link New Child</h2>
+                                    <button onClick={() => { setShowLinkModal(false); setLinkMessage(""); }} className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-all">
+                                        <i className="bi bi-x-lg text-gray-400"></i>
+                                    </button>
+                                </div>
+                                <form onSubmit={handleLinkChild} className="space-y-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Student Identification Number</label>
+                                        <input
+                                            className="w-full px-6 py-4 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 font-semibold border border-gray-100"
+                                            placeholder="e.g. A9238"
+                                            value={linkInputId}
+                                            onChange={e => setLinkInputId(e.target.value)}
+                                        />
+                                    </div>
+                                    {linkMessage && (
+                                        <div className={`p-4 rounded-xl text-[10px] font-black uppercase text-center ${linkMessage.includes("success") ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
+                                            {linkMessage}
+                                        </div>
+                                    )}
+                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-600/20 uppercase tracking-widest text-[10px]">
+                                        Verify & Link Identity
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
                     {!child ? (
                         <div className="flex-grow flex flex-col items-center justify-center p-12 text-center text-gray-800">
-                            <div className="w-48 h-48 bg-white rounded-[4rem] shadow-2xl flex items-center justify-center mb-12 border border-gray-100 group hover:scale-105 transition-all">
+                            {error && (
+                                <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] font-black text-red-600 uppercase tracking-widest animate-pulse">
+                                    <i className="bi bi-exclamation-triangle-fill mr-2"></i> {error}
+                                </div>
+                            )}
+                            <div className="w-48 h-48 bg-white rounded-[4rem] shadow-2xl flex items-center justify-center mb-12 border border-gray-100 group hover:scale-105 transition-all relative">
                                 <i className="bi bi-shield-fill-check text-8xl text-blue-600"></i>
+                                {linkedStudentIds.length === 0 && (
+                                    <div className="absolute -bottom-4 bg-gray-900 text-white px-4 py-2 rounded-full text-[8px] font-black uppercase tracking-widest">Setup Required</div>
+                                )}
                             </div>
                             <h1 className="text-6xl font-black mb-6 tracking-tighter uppercase leading-[0.9]">Universal <br /><span className="text-blue-600 tracking-[-0.05em]">Safety Portal</span></h1>
-                            <p className="text-gray-400 max-w-sm text-lg font-medium leading-relaxed italic border-l-4 border-blue-600 pl-6">Cocoon protects what matters most. Enter a Student ID to begin monitoring.</p>
+                            <p className="text-gray-400 max-w-sm text-lg font-medium leading-relaxed italic border-l-4 border-blue-600 pl-6">
+                                {linkedStudentIds.length === 0
+                                    ? "Welcome. Please use the 'Link New' button in the sidebar to add your child's student ID and begin monitoring."
+                                    : "Select a linked child from your dashboard to begin monitoring their interactions."}
+                            </p>
                         </div>
                     ) : (
                         <div className="flex-grow flex flex-col h-full overflow-hidden">

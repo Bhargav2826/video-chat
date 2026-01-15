@@ -4,7 +4,25 @@ import Student from "../models/Student.js";
 import Faculty from "../models/Faculty.js";
 import Call from "../models/Call.js";
 
+import Parent from "../models/Parent.js";
+
 const router = express.Router();
+
+// Helper to verify if a parent is authorized to view a student
+const verifyParentAccess = async (req, res, studentId) => {
+    const parentId = req.headers["x-parent-id"];
+    if (!parentId) return true; // Fallback for other roles if needed
+
+    const parent = await Parent.findById(parentId);
+    if (!parent) return false;
+
+    // Check if the student's ID (the string) is in the parent's linked list
+    // Note: the studentId passed to these routes is the student's _id
+    const student = await Student.findById(studentId);
+    if (!student) return false;
+
+    return parent.linkedStudentIds.includes(student.studentId);
+};
 
 // Get conversation between two users
 router.get("/history/:user1Id/:user2Id", async (req, res) => {
@@ -28,6 +46,16 @@ router.get("/child/:studentId", async (req, res) => {
         const { studentId } = req.params;
         const student = await Student.findOne({ studentId });
         if (!student) return res.status(404).json({ error: "Student not found" });
+
+        // Authorization check
+        const parentId = req.headers["x-parent-id"];
+        if (parentId) {
+            const parent = await Parent.findById(parentId);
+            if (!parent || !parent.linkedStudentIds.includes(studentId)) {
+                return res.status(403).json({ error: "Access Denied: You are not authorized to monitor this student." });
+            }
+        }
+
         res.json(student);
     } catch (err) {
         res.status(500).json({ error: "Search failed" });
@@ -38,6 +66,10 @@ router.get("/child/:studentId", async (req, res) => {
 router.get("/interactions/:studentId", async (req, res) => {
     try {
         const { studentId } = req.params;
+        if (!(await verifyParentAccess(req, res, studentId))) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
         const messages = await Message.find({
             $or: [{ sender: studentId }, { receiver: studentId }]
         });
@@ -57,6 +89,10 @@ router.get("/interactions/:studentId", async (req, res) => {
 router.get("/flagged/:studentId", async (req, res) => {
     try {
         const { studentId } = req.params;
+        if (!(await verifyParentAccess(req, res, studentId))) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
         const flaggedMessages = await Message.find({
             $or: [{ sender: studentId }, { receiver: studentId }],
             flagged: true
@@ -71,6 +107,10 @@ router.get("/flagged/:studentId", async (req, res) => {
 router.get("/calls/:studentId", async (req, res) => {
     try {
         const { studentId } = req.params;
+        if (!(await verifyParentAccess(req, res, studentId))) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
         const calls = await Call.find({
             participantIds: studentId
         }).sort({ createdAt: -1 });
@@ -84,6 +124,10 @@ router.get("/calls/:studentId", async (req, res) => {
 router.get("/active-call/:studentId", async (req, res) => {
     try {
         const { studentId } = req.params;
+        if (!(await verifyParentAccess(req, res, studentId))) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
         const activeCall = await Call.findOne({
             participantIds: studentId,
             status: "active"
@@ -98,6 +142,10 @@ router.get("/active-call/:studentId", async (req, res) => {
 router.get("/summary/:studentId", async (req, res) => {
     try {
         const { studentId } = req.params;
+        if (!(await verifyParentAccess(req, res, studentId))) {
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 

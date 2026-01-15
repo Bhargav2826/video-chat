@@ -7,12 +7,13 @@ function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("student");
+  const [linkedStudentId, setLinkedStudentId] = useState("");
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("/api/auth/register", { username, email, password, role });
+      await axios.post("/api/auth/register", { username, email, password, role, linkedStudentId });
       alert("Registered successfully!");
       navigate("/login");
     } catch (err) {
@@ -22,7 +23,7 @@ function Register() {
 
   return (
     <div className="flex justify-center items-center h-screen bg-gray-100 dark:bg-gray-900 px-4">
-      <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 w-full max-w-md border border-gray-100 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 w-full max-w-md border border-gray-100 dark:border-gray-700 overflow-y-auto max-h-[90vh]">
         <h2 className="text-3xl font-bold text-center mb-8 text-gray-800 dark:text-white">Create Account</h2>
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
@@ -60,6 +61,22 @@ function Register() {
               <option value="parent">👪 Parent</option>
             </select>
           </div>
+
+          {role === "parent" && (
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+              <label className="block text-xs font-bold text-blue-600 uppercase tracking-widest mb-2 ml-1">Child's Student ID</label>
+              <input
+                type="text"
+                className="w-full px-4 py-3 rounded-xl border-2 border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
+                placeholder="e.g. A2934"
+                value={linkedStudentId}
+                onChange={e => setLinkedStudentId(e.target.value)}
+                required
+              />
+              <p className="text-[10px] text-gray-400 mt-2 ml-1 italic font-medium">Link your child's student ID to monitor their safety.</p>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Password</label>
             <input

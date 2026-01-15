@@ -57,9 +57,14 @@ router.post("/register", async (req, res) => {
 
     const Model = getModelByRole(role);
     let studentId = undefined;
+    let linkedStudentIds = undefined;
 
     if (role === "student") {
       studentId = await generateUniqueStudentId();
+    }
+
+    if (role === "parent" && req.body.linkedStudentId) {
+      linkedStudentIds = [req.body.linkedStudentId];
     }
 
     const newUser = new Model({
@@ -67,7 +72,8 @@ router.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       role: role || "student",
-      studentId
+      studentId,
+      linkedStudentIds
     });
     const user = await newUser.save();
 
@@ -127,7 +133,8 @@ router.post("/login", async (req, res) => {
       username: user.username,
       id: user._id,
       role: user.role,
-      studentId: user.studentId
+      studentId: user.studentId,
+      linkedStudentIds: user.linkedStudentIds
     });
   } catch (err) {
     console.error("❌ Login error:", err);
@@ -149,6 +156,34 @@ router.get("/all-users", async (req, res) => {
   } catch (err) {
     console.error("❌ Fetch users error:", err);
     res.status(500).json("Server error");
+  }
+});
+
+// --------------------
+// Link a child to a parent (for existing users)
+// --------------------
+router.post("/link-child", async (req, res) => {
+  try {
+    const { parentId, studentId } = req.body;
+
+    // Verify student exists
+    const student = await Student.findOne({ studentId });
+    if (!student) return res.status(404).json({ error: "Student ID not found" });
+
+    // Link to parent
+    const parent = await Parent.findById(parentId);
+    if (!parent) return res.status(404).json({ error: "Parent not found" });
+
+    if (parent.linkedStudentIds.includes(studentId)) {
+      return res.status(400).json({ error: "Child already linked" });
+    }
+
+    parent.linkedStudentIds.push(studentId);
+    await parent.save();
+
+    res.json({ message: "Student linked successfully", linkedStudentIds: parent.linkedStudentIds });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
 });
 
