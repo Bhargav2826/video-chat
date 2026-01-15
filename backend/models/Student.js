@@ -6,6 +6,7 @@ const StudentSchema = new mongoose.Schema(
         email: { type: String, required: true, unique: true },
         password: { type: String, required: true },
         role: { type: String, default: "student" },
+        studentId: { type: String, unique: true },
     },
     { timestamps: true }
 );

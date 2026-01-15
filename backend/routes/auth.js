@@ -4,6 +4,7 @@ import Faculty from "../models/Faculty.js";
 import Parent from "../models/Parent.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import Counter from "../models/Counter.js";
 
 const router = express.Router();
 
@@ -11,6 +12,23 @@ const getModelByRole = (role) => {
   if (role === "faculty") return Faculty;
   if (role === "parent") return Parent;
   return Student;
+};
+
+const generateUniqueStudentId = async () => {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let isUnique = false;
+  let newId = "";
+
+  while (!isUnique) {
+    const randomLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+    const randomDigits = Math.floor(1000 + Math.random() * 9000); // 4 digits
+    newId = `${randomLetter}${randomDigits}`;
+
+    // Check if this ID already exists
+    const existing = await Student.findOne({ studentId: newId });
+    if (!existing) isUnique = true;
+  }
+  return newId;
 };
 
 // --------------------
@@ -38,7 +56,19 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const Model = getModelByRole(role);
-    const newUser = new Model({ username, email, password: hashedPassword, role: role || "student" });
+    let studentId = undefined;
+
+    if (role === "student") {
+      studentId = await generateUniqueStudentId();
+    }
+
+    const newUser = new Model({
+      username,
+      email,
+      password: hashedPassword,
+      role: role || "student",
+      studentId
+    });
     const user = await newUser.save();
 
     res.status(201).json({ message: `${role || "student"} registered successfully`, user });
@@ -57,10 +87,26 @@ router.post("/login", async (req, res) => {
 
     // Search across all collections
     let user = await Student.findOne({ email });
-    if (!user) user = await Faculty.findOne({ email });
-    if (!user) user = await Parent.findOne({ email });
+    if (!user) {
+      user = await Faculty.findOne({ email });
+    }
+    if (!user) {
+      user = await Parent.findOne({ email });
+    }
 
     if (!user) return res.status(400).json({ error: "User not found" });
+
+    // Handle existing students without studentId or with old 'S' format
+    if (user.role === "student") {
+      const isOldFormat = user.studentId && user.studentId.startsWith('S') && user.studentId.length === 5;
+      // ONLY assign a new ID if they don't have one AT ALL or if they have the old 'S0000' format
+      if (!user.studentId || isOldFormat) {
+        user.studentId = await generateUniqueStudentId();
+        await user.save();
+      }
+      // Once they have a random ID (e.g. K9382), this block is skipped on subsequent logins, 
+      // ensuring the ID is for a lifetime.
+    }
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ error: "Wrong password" });
@@ -76,7 +122,13 @@ router.post("/login", async (req, res) => {
       { expiresIn: "111h" }
     );
 
-    res.json({ token, username: user.username, id: user._id, role: user.role });
+    res.json({
+      token,
+      username: user.username,
+      id: user._id,
+      role: user.role,
+      studentId: user.studentId
+    });
   } catch (err) {
     console.error("❌ Login error:", err);
     res.status(500).json({ error: err.message || "Server error" });

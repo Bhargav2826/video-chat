@@ -14,6 +14,7 @@ function Student() {
     const username = localStorage.getItem("username") || "Guest";
     const userId = localStorage.getItem("userId");
     const role = localStorage.getItem("role");
+    const studentId = localStorage.getItem("studentId");
 
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -255,9 +256,17 @@ function Student() {
                     <span className="text-xl font-black tracking-tighter text-blue-900">COCOON <span className="text-gray-400">STUDENT DASHBOARD</span></span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                        <span className="text-sm font-bold text-gray-800">{username}</span>
+                    <div className="flex items-center gap-3">
+                        {studentId && (
+                            <div className="bg-blue-600/10 border border-blue-600/20 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
+                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Student ID</span>
+                                <span className="text-sm font-black text-blue-900">{studentId}</span>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                            <span className="text-sm font-bold text-gray-800">{username}</span>
+                        </div>
                     </div>
                     <button onClick={handleLogout} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold transition-all">
                         Logout
