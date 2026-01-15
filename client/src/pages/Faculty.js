@@ -18,7 +18,6 @@ function Faculty() {
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [incomingCall, setIncomingCall] = useState(null);
-    const [room, setRoom] = useState(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isInCall, setIsInCall] = useState(false);
     const [callStatus, setCallStatus] = useState("idle");
@@ -78,6 +77,7 @@ function Faculty() {
 
     const startCameraPreview = async () => {
         try {
+            setIsPreviewing(true);
             let attempts = 0;
             while (!localVideoRef.current && attempts < 20) {
                 await new Promise((r) => setTimeout(r, 100));
@@ -95,7 +95,6 @@ function Faculty() {
                 videoTrack.attach(localVideoRef.current);
                 await tryPlay(localVideoRef.current);
             }
-            setIsPreviewing(true);
             return tracks;
         } catch (err) {
             alert("Please allow camera/microphone access.");
@@ -145,7 +144,7 @@ function Faculty() {
             setIsInCall(true);
             setIsPreviewing(true);
             setCallStatus("connected");
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 200));
             const res = await fetch("/api/livekit/token", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -155,8 +154,10 @@ function Faculty() {
             const livekitRoom = new Room({ adaptiveStream: true, dynacast: true });
             livekitRoom.on(RoomEvent.TrackSubscribed, async (track) => {
                 if (track.kind === "video") {
-                    track.attach(remoteVideoRef.current);
-                    await tryPlay(remoteVideoRef.current);
+                    if (remoteVideoRef.current) {
+                        track.attach(remoteVideoRef.current);
+                        await tryPlay(remoteVideoRef.current);
+                    }
                 } else if (track.kind === "audio") {
                     track.attach();
                 }
@@ -168,15 +169,51 @@ function Faculty() {
                 await livekitRoom.localParticipant.publishTrack(track);
             }
             const vTrack = tracks.find(t => t.kind === "video");
-            if (vTrack) vTrack.attach(localVideoRef.current);
-            setRoom(livekitRoom);
+            if (vTrack && localVideoRef.current) {
+                vTrack.attach(localVideoRef.current);
+                await tryPlay(localVideoRef.current);
+            }
+
+            // Sync existing remote tracks
+            livekitRoom.remoteParticipants.forEach((participant) => {
+                participant.trackPublications.forEach((pub) => {
+                    if (pub.isSubscribed && pub.track) {
+                        if (pub.track.kind === "video" && remoteVideoRef.current) {
+                            pub.track.attach(remoteVideoRef.current);
+                            tryPlay(remoteVideoRef.current);
+                        } else if (pub.track.kind === "audio") {
+                            pub.track.attach();
+                        }
+                    }
+                });
+            });
+
             roomRef.current = livekitRoom;
             startAudioCapture(username, roomName);
         } catch (e) { console.error(e); }
     }, [username]);
 
+    const handleAcceptCall = () => {
+        if (!incomingCall) return;
+        socket.emit("call-response", {
+            toUserId: incomingCall.id,
+            accepted: true,
+            roomName: incomingCall.roomName,
+        });
+        setIncomingCall(null);
+        acceptCall(incomingCall.roomName);
+    };
+
+    const handleDeclineCall = () => {
+        if (!incomingCall) return;
+        socket.emit("call-response", { toUserId: incomingCall.id, accepted: false });
+        setIncomingCall(null);
+        setCallStatus("idle");
+    };
+
     const initiateCall = async () => {
         if (!selectedUser) return;
+        setIsPreviewing(true);
         const roomName = `room_${[username, selectedUser.username].sort().join("_")}`;
         setCallStatus("calling");
         await startCameraPreview();
@@ -232,7 +269,6 @@ function Faculty() {
             roomRef.current.disconnect();
             roomRef.current = null;
         }
-        setRoom(null);
         setIsInCall(false);
         setIsPreviewing(false);
         setCallStatus("idle");
@@ -341,7 +377,7 @@ function Faculty() {
                             </header>
 
                             <div className="flex-grow bg-gray-100 relative overflow-hidden p-6 group/call">
-                                {(isPreviewing || isInCall) && (
+                                {(isPreviewing || isInCall || callStatus === "calling" || callStatus === "connected") && (
                                     <div className="h-full w-full flex flex-col md:flex-row gap-6">
                                         <div className="flex-grow relative bg-white rounded-[2.5rem] overflow-hidden shadow-2xl border border-gray-100">
                                             <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
@@ -402,8 +438,8 @@ function Faculty() {
                         <h3 className="text-3xl font-black text-gray-800 mb-2">{incomingCall.name}</h3>
                         <p className="text-gray-400 font-black uppercase tracking-[0.3em] text-[10px] mb-10">Signaling Verification Incoming</p>
                         <div className="flex gap-6">
-                            <button onClick={() => acceptCall(incomingCall.roomName)} className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95">ACCEPT CALL</button>
-                            <button onClick={() => setIncomingCall(null)} className="flex-grow py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95">DECLINE</button>
+                            <button onClick={handleAcceptCall} className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95">ACCEPT CALL</button>
+                            <button onClick={handleDeclineCall} className="flex-grow py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95">DECLINE</button>
                         </div>
                     </div>
                 </div>

@@ -4,6 +4,16 @@ import fs from "fs";
 import fetch from "node-fetch";
 import SpeechModel from "../models/Speech.js";
 
+const getFullLanguageName = (code) => {
+  if (!code || code === "unknown") return "unknown";
+  const names = {
+    "en": "English", "hi": "Hindi", "gu": "Gujarati", "bn": "Bengali",
+    "ta": "Tamil", "te": "Telugu", "ml": "Malayalam", "mr": "Marathi",
+    "kn": "Kannada", "pa": "Punjabi", "ur": "Urdu"
+  };
+  return names[code.toLowerCase()] || code;
+};
+
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
@@ -34,10 +44,11 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
     }
 
     // Save to MongoDB Atlas
+    const fullLanguage = getFullLanguageName(language);
     const newSpeech = new SpeechModel({
       username,
       transcription: transcript,
-      language,
+      language: fullLanguage,
     });
     await newSpeech.save();
 
@@ -45,7 +56,7 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
       success: true,
       username,
       text: transcript,
-      language,
+      language: fullLanguage,
     });
   } catch (error) {
     console.error("Transcription error:", error);

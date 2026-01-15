@@ -5,6 +5,16 @@ import dotenv from "dotenv";
 import { createClient } from "@deepgram/sdk";
 import SpeechModel from "../models/Speech.js";
 
+const getFullLanguageName = (code) => {
+  if (!code || code === "unknown") return "unknown";
+  const names = {
+    "en": "English", "hi": "Hindi", "gu": "Gujarati", "bn": "Bengali",
+    "ta": "Tamil", "te": "Telugu", "ml": "Malayalam", "mr": "Marathi",
+    "kn": "Kannada", "pa": "Punjabi", "ur": "Urdu"
+  };
+  return names[code.toLowerCase()] || code;
+};
+
 dotenv.config();
 
 const router = express.Router();
@@ -54,10 +64,11 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
     }
 
     const language = result?.results?.channels?.[0]?.detected_language || "en";
+    const fullLanguage = getFullLanguageName(language);
 
     const speechDoc = new SpeechModel({
       username: username,
-      language,
+      language: fullLanguage,
       transcription: transcript,
     });
 
@@ -66,7 +77,7 @@ router.post("/transcribe", upload.single("audio"), async (req, res) => {
     res.json({
       success: true,
       text: transcript,
-      language,
+      language: fullLanguage,
       id: speechDoc._id,
     });
   } catch (err) {

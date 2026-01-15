@@ -150,30 +150,43 @@ async function getNextRegisterNumber() {
 async function detectLanguageFromText(text) {
   if (!text || !text.trim() || text.trim().length < 3) return "unknown";
   try {
-    // Dynamic import for CommonJS compatibility
     const francModule = await import("franc");
     const francFunc = francModule.default || francModule.franc || francModule;
     const detected = francFunc(text.trim());
-    // Map franc codes to ISO 639-1 where possible
     const langMap = {
-      "hin": "hi", // Hindi
-      "ben": "bn", // Bengali
-      "tam": "ta", // Tamil
-      "tel": "te", // Telugu
-      "mal": "ml", // Malayalam
-      "mar": "mr", // Marathi
-      "guj": "gu", // Gujarati
-      "kan": "kn", // Kannada
-      "pan": "pa", // Punjabi
-      "urd": "ur", // Urdu
-      "eng": "en", // English
+      "hin": "hi", "ben": "bn", "tam": "ta", "tel": "te", "mal": "ml",
+      "mar": "mr", "guj": "gu", "kan": "kn", "pan": "pa", "urd": "ur", "eng": "en",
     };
     return langMap[detected] || detected || "unknown";
   } catch (e) {
-    console.warn("⚠️ Franc detection error:", e);
     return "unknown";
   }
 }
+
+// ✅ Added detailed language name mapping
+const getFullLanguageName = (code) => {
+  if (!code || code === "unknown") return "unknown";
+  const names = {
+    "en": "English",
+    "hi": "Hindi",
+    "gu": "Gujarati",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "kn": "Kannada",
+    "pa": "Punjabi",
+    "ur": "Urdu",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean"
+  };
+  return names[code.toLowerCase()] || code;
+};
 
 // Optional Whisper fallback (requires OPENAI_API_KEY)
 async function transcribeWithWhisper(buffer, mimeType) {
@@ -352,21 +365,22 @@ io.on("connection", (socket) => {
       const engineUsed = (dg?.text && dg.text.trim()) ? "Deepgram" : ((wh?.text && wh.text.trim()) ? "Whisper" : "none");
 
       if (finalText) {
+        const fullLanguage = getFullLanguageName(finalLang);
         const speechDoc = new SpeechModel({
           username,
           transcription: finalText,
-          language: finalLang || "unknown",
+          language: fullLanguage,
           roomName,
           registerNumber: roomToRegister[roomName],
         });
         await speechDoc.save();
-        console.log(`💾 Saved (${engineUsed}): ${username} (${finalLang || "unknown"}) [${roomToRegister[roomName] || "no-reg"}] -> ${finalText}`);
+        console.log(`💾 Saved (${engineUsed}): ${username} (${fullLanguage}) [${roomToRegister[roomName] || "no-reg"}] -> ${finalText}`);
 
         // 🚀 Broadcast to room for real-time captions
         io.to(roomName).emit("new-transcription", {
           username,
           text: finalText,
-          language: finalLang,
+          language: fullLanguage,
           timestamp: new Date()
         });
       } else {
