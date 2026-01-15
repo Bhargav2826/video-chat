@@ -29,6 +29,9 @@ function Faculty() {
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [captions, setCaptions] = useState([]);
     const [isMinimized, setIsMinimized] = useState(false);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState("");
+    const [isSending, setIsSending] = useState(false);
 
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -36,6 +39,7 @@ function Faculty() {
     const recorderRef = useRef(null);
     const recorderIntervalRef = useRef(null);
     const audioStreamRef = useRef(null);
+    const chatEndRef = useRef(null);
 
     useEffect(() => {
         if (role !== "faculty") {
@@ -47,6 +51,7 @@ function Faculty() {
             try {
                 setIsLoadingUsers(true);
                 const res = await axios.get("/api/auth/all-users");
+                // Faculty can see both Students and Parents (and potentially other Faculty)
                 setUsers(res.data.filter((u) => u.username !== username));
                 setUsersError("");
             } catch (err) {
@@ -61,7 +66,60 @@ function Faculty() {
             userId: userId || username,
             userName: username,
         });
+
+        // Listen for messages
+        socket.on("receive-message", (msg) => {
+            setMessages((prev) => [...prev, msg]);
+        });
+
+        socket.on("message-sent", (msg) => {
+            setMessages((prev) => [...prev, msg]);
+            setNewMessage("");
+            setIsSending(false);
+        });
+
+        return () => {
+            socket.off("receive-message");
+            socket.off("message-sent");
+        };
     }, [username, userId, role, navigate]);
+
+    // Fetch message history when selectedUser changes
+    useEffect(() => {
+        if (selectedUser && userId) {
+            const fetchHistory = async () => {
+                try {
+                    const res = await axios.get(`/api/messages/history/${userId}/${selectedUser._id}`);
+                    setMessages(res.data);
+                } catch (err) {
+                    console.error("Failed to fetch history:", err);
+                }
+            };
+            fetchHistory();
+        }
+    }, [selectedUser, userId]);
+
+    // Auto scroll to bottom
+    useEffect(() => {
+        const chatContainer = document.getElementById("chat-container");
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    }, [messages]);
+
+    const sendMessage = (e) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !selectedUser || isSending) return;
+
+        setIsSending(true);
+        socket.emit("send-message", {
+            senderId: userId,
+            senderModel: "Faculty", // Known for this page
+            receiverId: selectedUser._id,
+            receiverModel: selectedUser.role === "student" ? "Student" : (selectedUser.role === "parent" ? "Parent" : "Faculty"),
+            text: newMessage
+        });
+    };
 
     const tryPlay = async (videoEl, attempts = 5, delayMs = 250) => {
         if (!videoEl) return;
@@ -303,7 +361,7 @@ function Faculty() {
                 </div>
             </nav>
 
-            <div className="flex-grow flex overflow-hidden">
+            <div className="h-screen bg-gray-100 flex shadow-2xl overflow-hidden antialiased text-gray-900 border-none m-0">
                 <aside className="bg-white border-r border-gray-100 w-80 hidden lg:flex flex-col shadow-sm">
                     <div className="p-6 border-b border-gray-100">
                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 text-center">Faculty Directory</h3>
@@ -368,26 +426,82 @@ function Faculty() {
                                     <div>
                                         <h2 className="text-2xl font-black text-gray-800">{selectedUser.username}</h2>
                                         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
+                                            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
                                             Encrypted Connection: {callStatus}
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={initiateCall} disabled={isInCall} className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-2xl shadow-blue-600/40 transform active:scale-95 disabled:opacity-50">
-                                    <i className="bi bi-camera-video-fill text-xl"></i> START SECURE CALL
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <button onClick={initiateCall} disabled={isInCall} className="w-12 h-12 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center transition-all transform active:scale-95 disabled:opacity-50" title="Start Video Call">
+                                        <i className="bi bi-camera-video-fill text-xl"></i>
+                                    </button>
+                                    <button onClick={initiateCall} disabled={isInCall} className="px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black flex items-center gap-3 transition-all shadow-xl shadow-blue-600/30 transform active:scale-95 disabled:opacity-50">
+                                        <i className="bi bi-shield-check"></i> START CALL
+                                    </button>
+                                </div>
                             </header>
 
-                            <div className="flex-grow bg-gray-100 flex flex-col items-center justify-center p-6">
-                                <div className="bg-white p-12 rounded-[3.5rem] border border-gray-100 shadow-2xl text-center max-w-lg">
-                                    <div className="w-24 h-24 bg-blue-50/50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-blue-100">
-                                        <i className="bi bi-camera-video-fill text-4xl text-blue-600"></i>
-                                    </div>
-                                    <h3 className="text-2xl font-black text-gray-800 mb-4 tracking-tight">Ready for a secure session?</h3>
-                                    <p className="text-gray-500 font-medium mb-10 leading-relaxed text-lg">Click below to initialize an encrypted video connection with {selectedUser.username}.</p>
-                                    <button onClick={initiateCall} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] font-black flex items-center justify-center gap-3 transition-all shadow-2xl shadow-blue-600/40 transform active:scale-95">
-                                        <i className="bi bi-shield-check text-xl"></i> START SECURE CALL
-                                    </button>
+                            {/* CHAT INTERFACE - WHATSAPP STYLE */}
+                            <div className="flex-grow flex flex-col bg-gray-50 h-0 overflow-hidden relative">
+                                {/* Chat Messages Area */}
+                                <div
+                                    id="chat-container"
+                                    className="flex-grow overflow-y-auto p-8 flex flex-col custom-scrollbar"
+                                    style={{
+                                        backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.02) 1px, transparent 0)',
+                                        backgroundSize: '24px 24px'
+                                    }}
+                                >
+                                    {messages.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                                            <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                                                <i className="bi bi-chat-dots-fill text-3xl"></i>
+                                            </div>
+                                            <p className="font-bold uppercase tracking-widest text-xs">No messages yet. Say hello!</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-4">
+                                            {messages.map((msg, idx) => (
+                                                <div key={idx} className={`flex ${msg.sender === userId ? "justify-end" : "justify-start animate-in slide-in-from-left-4 duration-300"}`}>
+                                                    <div className={`max-w-[70%] group relative`}>
+                                                        <div className={`px-5 py-3 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed ${msg.sender === userId
+                                                            ? "bg-blue-600 text-white rounded-tr-none"
+                                                            : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
+                                                            }`}>
+                                                            {msg.text}
+                                                        </div>
+                                                        <div className={`text-[9px] font-black uppercase tracking-tighter mt-1.5 opacity-40 ${msg.sender === userId ? "text-right mr-1" : "text-left ml-1"}`}>
+                                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Message Input Area */}
+                                <div className="p-8 bg-white border-t border-gray-100">
+                                    <form onSubmit={sendMessage} className="flex items-center gap-4 bg-gray-50 p-2 rounded-[2rem] border border-gray-100 transition-all">
+                                        <button type="button" className="w-12 h-12 rounded-full hover:bg-gray-200 text-gray-400 flex items-center justify-center transition-all">
+                                            <i className="bi bi-plus-lg text-xl"></i>
+                                        </button>
+                                        <input
+                                            type="text"
+                                            value={newMessage}
+                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            placeholder={`Type a message to ${selectedUser.username}...`}
+                                            className="flex-grow bg-transparent border-none focus:ring-0 focus:outline-none text-sm font-semibold text-gray-800 placeholder:text-gray-400"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={!newMessage.trim() || isSending}
+                                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all transform active:scale-90 ${newMessage.trim() && !isSending ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" : "bg-gray-200 text-gray-400"
+                                                }`}
+                                        >
+                                            <i className={`bi ${isSending ? "bi-hourglass-split animate-spin" : "bi-send-fill"} text-lg`}></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </div>

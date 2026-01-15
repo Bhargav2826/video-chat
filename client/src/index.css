@@ -16,6 +16,15 @@ code {
     monospace;
 }
 
+/* Globally remove focus outlines and rings for a clean UI */
+input:focus,
+button:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

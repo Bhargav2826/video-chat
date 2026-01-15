@@ -17,6 +17,8 @@ import CallModel from "./models/Call.js";
 import authRoutes from "./routes/auth.js";
 import speechRoutes from "./speech/speechRoutes.js";
 import transcriptionRoutes from "./routes/transcription.js";
+import messageRoutes from "./routes/messages.js";
+import Message from "./models/Message.js";
 
 // --- Setup Paths & Config ---
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -81,6 +83,7 @@ mongoose
 app.use("/api/auth", authRoutes);
 app.use("/api/speech", speechRoutes);
 app.use("/api/transcription", transcriptionRoutes);
+app.use("/api/messages", messageRoutes);
 
 // -------------------- Catch-All for React Router --------------------
 // Define this function to be reused or placed at the end? 
@@ -225,6 +228,32 @@ io.on("connection", (socket) => {
     if (!userId || !userName) return;
     onlineUsers[userId] = { socketId: socket.id, userName };
     console.log(`✅ Registered: ${userName} (${userId})`);
+  });
+
+  // 🔹 Messaging events
+  socket.on("send-message", async ({ senderId, senderModel, receiverId, receiverModel, text }) => {
+    try {
+      const newMessage = new Message({
+        sender: senderId,
+        senderModel,
+        receiver: receiverId,
+        receiverModel,
+        text
+      });
+      const savedMessage = await newMessage.save();
+      console.log(`💾 Message saved to database: ${senderModel} (${senderId}) -> ${receiverModel} (${receiverId})`);
+
+      // Emit to receiver if online
+      const receiver = onlineUsers[receiverId];
+      if (receiver) {
+        io.to(receiver.socketId).emit("receive-message", savedMessage);
+      }
+
+      // Emit back to sender
+      socket.emit("message-sent", savedMessage);
+    } catch (err) {
+      console.error("❌ Send message error:", err);
+    }
   });
 
   // 🔹 Call events
