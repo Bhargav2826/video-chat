@@ -191,12 +191,14 @@ router.get("/call-transcripts/:roomName", async (req, res) => {
             const parent = await Parent.findById(parentId);
             if (!parent) return res.status(403).json({ error: "Unauthorized" });
 
-            // Find if any student in call is linked to parent
-            // call.participantIds contains student _id or faculty _id.
-            // parent.linkedStudentIds contains studentId (string field like S102).
-            // We need to find students from participantIds and check their studentId field.
-            const studentsInCall = await Student.find({ _id: { $in: call.participantIds } });
-            const isAuthorized = studentsInCall.some(s => parent.linkedStudentIds.includes(s.studentId));
+            // Find all students linked to this parent
+            const linkedStudents = await Student.find({ studentId: { $in: parent.linkedStudentIds } });
+            const linkedStudentIdsArr = linkedStudents.map(s => s._id.toString());
+            const linkedStudentUsernames = linkedStudents.map(s => s.username);
+
+            // Check if any linked student is a participant (by ID or Username for legacy support)
+            const isAuthorized = (call.participantIds || []).some(id => linkedStudentIdsArr.includes(id.toString())) ||
+                (call.participants || []).some(uname => linkedStudentUsernames.includes(uname));
 
             if (!isAuthorized) {
                 return res.status(403).json({ error: "Access Denied: You are not authorized to view this call's transcripts." });

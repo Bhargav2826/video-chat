@@ -196,6 +196,7 @@ function Parent() {
     const handleViewCallDetails = async (call) => {
         setSelectedCall(call);
         setIsLoading(true);
+        setError(""); // Clear previous errors
         try {
             const res = await axios.get(`/api/messages/call-transcripts/${call.roomName}`, {
                 headers: { "x-parent-id": userId }
@@ -203,6 +204,8 @@ function Parent() {
             setCallTranscripts(res.data);
         } catch (err) {
             console.error("Failed to fetch call details");
+            setError(err.response?.data?.error || "Failed to fetch call details. Authorization required.");
+            setSelectedCall(null); // Return to history list on error
         } finally {
             setIsLoading(false);
         }
