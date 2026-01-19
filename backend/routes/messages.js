@@ -3,7 +3,7 @@ import Message from "../models/Message.js";
 import Student from "../models/Student.js";
 import Faculty from "../models/Faculty.js";
 import Call from "../models/Call.js";
-
+import Speech from "../models/Speech.js";
 import Parent from "../models/Parent.js";
 
 const router = express.Router();
@@ -174,6 +174,39 @@ router.get("/summary/:studentId", async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ error: "Failed to generate summary" });
+    }
+});
+
+// Get transcription for a specific call room
+router.get("/call-transcripts/:roomName", async (req, res) => {
+    try {
+        const { roomName } = req.params;
+
+        // Authorization check: Find the call and verify parent has access to one of the participants
+        const call = await Call.findOne({ roomName });
+        if (!call) return res.status(404).json({ error: "Call not found" });
+
+        const parentId = req.headers["x-parent-id"];
+        if (parentId) {
+            const parent = await Parent.findById(parentId);
+            if (!parent) return res.status(403).json({ error: "Unauthorized" });
+
+            // Find if any student in call is linked to parent
+            // call.participantIds contains student _id or faculty _id.
+            // parent.linkedStudentIds contains studentId (string field like S102).
+            // We need to find students from participantIds and check their studentId field.
+            const studentsInCall = await Student.find({ _id: { $in: call.participantIds } });
+            const isAuthorized = studentsInCall.some(s => parent.linkedStudentIds.includes(s.studentId));
+
+            if (!isAuthorized) {
+                return res.status(403).json({ error: "Access Denied: You are not authorized to view this call's transcripts." });
+            }
+        }
+
+        const transcripts = await Speech.find({ roomName }).sort({ timestamp: 1 });
+        res.json(transcripts);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch call transcripts" });
     }
 });
 

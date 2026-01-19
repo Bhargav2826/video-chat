@@ -23,6 +23,8 @@ function Parent() {
     const [activeCall, setActiveCall] = useState(null);
     const [safetySummary, setSafetySummary] = useState(null);
     const [liveCaptions, setLiveCaptions] = useState([]);
+    const [selectedCall, setSelectedCall] = useState(null);
+    const [callTranscripts, setCallTranscripts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [activeTab, setActiveTab] = useState("chat"); // chat, safety, calls, report
@@ -191,6 +193,21 @@ function Parent() {
         }
     };
 
+    const handleViewCallDetails = async (call) => {
+        setSelectedCall(call);
+        setIsLoading(true);
+        try {
+            const res = await axios.get(`/api/messages/call-transcripts/${call.roomName}`, {
+                headers: { "x-parent-id": userId }
+            });
+            setCallTranscripts(res.data);
+        } catch (err) {
+            console.error("Failed to fetch call details");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.clear();
         navigate("/login");
@@ -320,7 +337,7 @@ function Parent() {
                             {linkedStudentIds.length > 0 && (
                                 <div className="space-y-6 max-w-4xl mx-auto pt-8">
                                     <div className="flex items-center justify-between px-2">
-                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Authorized Vault</h3>
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Children Vault</h3>
                                         <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg uppercase">{linkedStudentIds.length} Identity Found</span>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -376,7 +393,10 @@ function Parent() {
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
+                                            onClick={() => {
+                                                setActiveTab(tab.id);
+                                                setSelectedCall(null);
+                                            }}
                                             className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.id
                                                 ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
                                                 : "text-gray-400 hover:text-gray-600"}`}
@@ -413,11 +433,31 @@ function Parent() {
                             )}
 
                             {/* MAIN DYNAMIC CONTENT */}
-                            <div className="space-y-10 min-h-[600px]">
+                            <div className="relative space-y-10 min-h-[600px]">
+                                {isLoading && (
+                                    <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-[2.5rem]">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Processing Secure Data...</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {activeTab === "chat" && (
                                     <div className="space-y-4">
-                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">Faculty Members</h3>
+                                        <div className="flex items-center justify-between px-2">
+                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Faculty Members</h3>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search communications..."
+                                                    value={chatSearch}
+                                                    onChange={(e) => setChatSearch(e.target.value)}
+                                                    className="bg-gray-100 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                                                />
+                                                <i className="bi bi-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
+                                            </div>
+                                        </div>
                                         <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar no-scrollbar">
                                             {faculties.map(f => (
                                                 <button
@@ -543,9 +583,70 @@ function Parent() {
                                                         <i className="bi bi-broadcast text-7xl mb-6 block text-gray-200"></i>
                                                         <p className="text-[10px] font-black uppercase tracking-widest">No previous sessions found</p>
                                                     </div>
+                                                ) : selectedCall ? (
+                                                    <div className="col-span-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                                                        <div className="flex items-center justify-between">
+                                                            <button
+                                                                onClick={() => setSelectedCall(null)}
+                                                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition-all"
+                                                            >
+                                                                <i className="bi bi-arrow-left"></i> Back to History
+                                                            </button>
+                                                            <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm">
+                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedCall.type === "video" ? "bg-blue-600 text-white" : "bg-green-600 text-white"}`}>
+                                                                    <i className={`bi ${selectedCall.type === "video" ? "bi-play-circle-fill" : "bi-soundwave"}`}></i>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-black text-gray-800 uppercase tracking-tight">{selectedCall.type} Call Analysis</span>
+                                                                    <span className="text-[9px] font-black text-gray-400 uppercase">{new Date(selectedCall.createdAt).toLocaleString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden">
+                                                            <div className="bg-gray-50/50 px-10 py-6 border-b border-gray-100 flex items-center justify-between">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transcription Vault</span>
+                                                                    <span className="text-sm font-black text-gray-800">Communication Timeline</span>
+                                                                </div>
+                                                                <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-1.5 rounded-lg uppercase">
+                                                                    {callTranscripts.length} Exchanges Captured
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-10 space-y-8 max-h-[500px] overflow-y-auto custom-scrollbar">
+                                                                {callTranscripts.length === 0 ? (
+                                                                    <div className="py-20 text-center opacity-30">
+                                                                        <i className="bi bi-chat-square-text text-5xl mb-4 block"></i>
+                                                                        <p className="text-[10px] font-black uppercase tracking-widest">No verbal data detected during this session</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    callTranscripts.map((t, i) => (
+                                                                        <div key={i} className="flex flex-col gap-3 group">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${t.username === child.username ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"}`}>
+                                                                                        {t.username.charAt(0).toUpperCase()}
+                                                                                    </div>
+                                                                                    <span className="text-[10px] font-black text-gray-800 uppercase tracking-widest">{t.username}</span>
+                                                                                </div>
+                                                                                <span className="text-[9px] font-black text-gray-300 uppercase">{new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                                                            </div>
+                                                                            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 group-hover:border-blue-500/20 transition-all">
+                                                                                <p className="text-sm font-medium text-gray-700 leading-relaxed italic">"{t.transcription}"</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ) : (
                                                     callHistory.map((call, i) => (
-                                                        <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                                        <div
+                                                            key={i}
+                                                            onClick={() => handleViewCallDetails(call)}
+                                                            className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden cursor-pointer"
+                                                        >
                                                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-all">
                                                                 <i className={`bi ${call.type === "video" ? "bi-camera-video" : "bi-mic"} text-6xl`}></i>
                                                             </div>
@@ -606,39 +707,41 @@ function Parent() {
             </div>
 
             {/* Link Modal - Aligned with Student/Faculty Modals */}
-            {showLinkModal && (
-                <div className="fixed inset-0 z-[100] bg-blue-900/20 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div className="bg-white p-10 rounded-[3rem] border border-white w-full max-w-lg text-center shadow-[0_40px_100px_rgba(30,58,138,0.3)] transform scale-100 animate-in zoom-in-95 duration-300">
-                        <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-[2rem] mx-auto mb-8 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-600/40">
-                            <i className="bi bi-link-45deg"></i>
-                        </div>
-                        <h2 className="text-3xl font-black text-gray-800 mb-2 uppercase tracking-tighter">Link Identity</h2>
-                        <p className="text-gray-400 font-black uppercase tracking-[0.2em] text-[10px] mb-10">Encrypted Guardian Validation</p>
+            {
+                showLinkModal && (
+                    <div className="fixed inset-0 z-[100] bg-blue-900/20 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+                        <div className="bg-white p-10 rounded-[3rem] border border-white w-full max-w-lg text-center shadow-[0_40px_100px_rgba(30,58,138,0.3)] transform scale-100 animate-in zoom-in-95 duration-300">
+                            <div className="w-24 h-24 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-[2rem] mx-auto mb-8 flex items-center justify-center text-4xl font-black text-white shadow-2xl shadow-blue-600/40">
+                                <i className="bi bi-link-45deg"></i>
+                            </div>
+                            <h2 className="text-3xl font-black text-gray-800 mb-2 uppercase tracking-tighter">Link Identity</h2>
+                            <p className="text-gray-400 font-black uppercase tracking-[0.2em] text-[10px] mb-10">Encrypted Guardian Validation</p>
 
-                        <form onSubmit={handleLinkChild} className="space-y-8">
-                            <div className="space-y-4">
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left ml-2">Student Identification ID</label>
-                                <input
-                                    className="w-full px-8 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm font-black text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                                    placeholder="e.g. S102"
-                                    value={linkInputId}
-                                    onChange={e => setLinkInputId(e.target.value)}
-                                    autoFocus
-                                />
-                            </div>
-                            {linkMessage && (
-                                <div className={`p-5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center animate-in slide-in-from-bottom-2 ${linkMessage.includes("success") ? "bg-green-50 text-green-600 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
-                                    {linkMessage}
+                            <form onSubmit={handleLinkChild} className="space-y-8">
+                                <div className="space-y-4">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest text-left ml-2">Student Identification ID</label>
+                                    <input
+                                        className="w-full px-8 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] text-sm font-black text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        placeholder="e.g. S102"
+                                        value={linkInputId}
+                                        onChange={e => setLinkInputId(e.target.value)}
+                                        autoFocus
+                                    />
                                 </div>
-                            )}
-                            <div className="flex gap-6">
-                                <button type="submit" className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95 uppercase tracking-widest text-xs">Authorize Identity</button>
-                                <button type="button" onClick={() => setShowLinkModal(false)} className="px-8 py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95 uppercase tracking-widest text-xs">Cancel</button>
-                            </div>
-                        </form>
+                                {linkMessage && (
+                                    <div className={`p-5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center animate-in slide-in-from-bottom-2 ${linkMessage.includes("success") ? "bg-green-50 text-green-600 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
+                                        {linkMessage}
+                                    </div>
+                                )}
+                                <div className="flex gap-6">
+                                    <button type="submit" className="flex-grow py-5 bg-blue-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 transition-all hover:bg-blue-500 active:scale-95 uppercase tracking-widest text-xs">Authorize Identity</button>
+                                    <button type="button" onClick={() => setShowLinkModal(false)} className="px-8 py-5 bg-gray-100 text-gray-500 font-black rounded-3xl transition-all hover:bg-gray-200 active:scale-95 uppercase tracking-widest text-xs">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             <style jsx>{`
                 @keyframes marquee-slow {
@@ -673,7 +776,7 @@ function Parent() {
                     box-shadow: 0 40px 100px rgba(0,0,0,0.1);
                 }
             `}</style>
-        </div>
+        </div >
     );
 }
 
