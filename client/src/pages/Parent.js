@@ -650,8 +650,9 @@ function Parent() {
                                                             onClick={() => handleViewCallDetails(call)}
                                                             className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden cursor-pointer"
                                                         >
-                                                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-all">
-                                                                <i className={`bi ${call.type === "video" ? "bi-camera-video" : "bi-mic"} text-6xl`}></i>
+                                                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-all flex flex-col items-end gap-2">
+                                                                <span className="text-4xl font-black text-blue-600 opacity-20 group-hover:opacity-40 transition-all">#{i + 1}</span>
+                                                                <i className={`bi ${call.type === "video" ? "bi-camera-video" : "bi-mic"} text-4xl`}></i>
                                                             </div>
                                                             <div className="space-y-6">
                                                                 <div className="flex items-center gap-4">
@@ -663,7 +664,8 @@ function Parent() {
                                                                         <span className="text-[10px] font-black text-gray-400 uppercase">Duration: {formatDuration(call.duration || 0)}</span>
                                                                     </div>
                                                                 </div>
-                                                                <div className="bg-gray-100 px-5 py-3 rounded-xl inline-block text-[10px] font-black text-gray-500 uppercase tracking-widest border border-gray-200">
+                                                                <div className="bg-blue-50 px-5 py-3 rounded-xl inline-block text-[10px] font-black text-blue-600 uppercase tracking-widest border border-blue-100 shadow-sm">
+                                                                    <i className="bi bi-calendar3 mr-2"></i>
                                                                     {new Date(call.createdAt).toLocaleString()}
                                                                 </div>
                                                             </div>
